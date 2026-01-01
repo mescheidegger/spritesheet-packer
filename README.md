@@ -1,4 +1,4 @@
-# spritesheet-tool
+# spritesheet-packer
 
 A small CLI utility to **trim, optionally rescale, and repack sprites** into a new sprite sheet.
 
