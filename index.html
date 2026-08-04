@@ -66,6 +66,11 @@
                 >
                 Individual frames
               </label>
+
+              <label>
+                <input type="radio" name="mode" value="atlas">
+                Multiple sprite sheets
+              </label>
             </div>
 
             <!-- File drop zone -->
@@ -220,7 +225,7 @@
             <legend>2. Processing options</legend>
 
             <div class="field-grid options">
-              <label>
+              <label id="trim-field">
                 <span class="check">
                   <input
                     id="trim"
@@ -237,7 +242,7 @@
                 </span>
               </label>
 
-              <label>
+              <label id="target-field">
                 Target frame size
                 <span class="hint">Optional</span>
 
@@ -261,7 +266,7 @@
                 ></span>
               </label>
 
-              <label>
+              <label id="padding-field">
                 Padding
 
                 <input
@@ -287,9 +292,10 @@
                     Single horizontal row
                   </option>
 
-                  <option value="grid">
-                    Grid
-                  </option>
+                  <option value="grid">Grid</option>
+                  <option class="atlas-layout" value="horizontal">Horizontal</option>
+                  <option class="atlas-layout" value="vertical">Vertical</option>
+                  <option class="atlas-layout" value="compact">Compact</option>
                 </select>
               </label>
 
@@ -317,6 +323,18 @@
                 ></span>
               </label>
 
+              <label id="gap-field" class="hidden">
+                Gap between sheets
+                <input id="gap" type="number" min="0" inputmode="numeric" value="0" aria-describedby="gap-error">
+                <span id="gap-error" class="error"></span>
+              </label>
+
+              <label id="max-width-field" class="hidden">
+                Maximum atlas width <span class="hint">Optional; derived from total area if blank</span>
+                <input id="max-width" type="number" min="1" inputmode="numeric" aria-describedby="max-width-error">
+                <span id="max-width-error" class="error"></span>
+              </label>
+
               <label>
                 Output basename
 
@@ -327,6 +345,8 @@
                 >
               </label>
             </div>
+
+            <p id="atlas-help" class="hint hidden">Each sheet is copied at its original size and is never sliced, scaled, trimmed, or rotated.</p>
 
             <p
               id="trim-warning"

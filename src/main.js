@@ -25,6 +25,11 @@ import {
   canvasToBlob,
   downloadBlob,
 } from './downloads.js';
+import {
+  calculateAtlasLayout,
+  createAtlasManifest,
+  renderAtlas,
+} from './atlas-packer.js';
 
 
 const BYTES_PER_RGBA_PIXEL = 4;
@@ -40,6 +45,8 @@ const EDITABLE_OPTION_IDS = new Set([
   'padding',
   'columns',
   'basename',
+  'gap',
+  'max-width',
 ]);
 
 
@@ -82,13 +89,14 @@ const state = {
   png: null,
   manifest: null,
   busy: false,
+  decodeGeneration: 0,
 };
 
 
 /**
  * Return the currently selected input mode.
  *
- * @returns {'sheet' | 'frames'}
+ * @returns {'sheet' | 'frames' | 'atlas'}
  */
 function getInputMode() {
   return form.elements.mode.value;
@@ -321,6 +329,9 @@ function updateSourceSummary() {
     values.push(
       `${count} ${noun} naturally sorted by filename`,
     );
+  } else if (getInputMode() === 'atlas') {
+    const count = state.frames.length;
+    values.push(`${count} sheet${count === 1 ? '' : 's'} naturally sorted by filename`);
   } else if (state.sourceSheet) {
     const frameWidth = Number(
       getElement('frame-width').value,
@@ -364,6 +375,8 @@ function validateForm() {
     target: '',
     padding: '',
     columns: '',
+    gap: '',
+    maxWidth: '',
     file: '',
   };
 
@@ -402,7 +415,9 @@ function validateForm() {
     }
   }
 
-  errors.target = validateInteger(
+  const isAtlas = getInputMode() === 'atlas';
+
+  errors.target = isAtlas ? '' : validateInteger(
     getElement('target-size').value,
     {
       label: 'Target size',
@@ -410,7 +425,7 @@ function validateForm() {
     },
   );
 
-  errors.padding = validateInteger(
+  errors.padding = isAtlas ? '' : validateInteger(
     getElement('padding').value,
     {
       label: 'Padding',
@@ -428,6 +443,24 @@ function validateForm() {
     );
   }
 
+  if (isAtlas) {
+    errors.gap = validateInteger(getElement('gap').value, {
+      label: 'Gap', minimum: 0,
+    });
+    const maxWidth = getElement('max-width').value;
+    if (getElement('layout').value === 'compact') {
+      errors.maxWidth = validateInteger(maxWidth, {
+        label: 'Maximum atlas width', optional: true,
+      });
+      if (!errors.maxWidth && maxWidth && state.frames.length > 0) {
+        const widest = Math.max(...state.frames.map((frame) => frame.width));
+        if (Number(maxWidth) < widest) {
+          errors.maxWidth = `Maximum atlas width must be at least ${widest}.`;
+        }
+      }
+    }
+  }
+
   getElement('frame-width-error').textContent =
     errors.frameWidth;
 
@@ -442,6 +475,8 @@ function validateForm() {
 
   getElement('columns-error').textContent =
     errors.columns;
+  getElement('gap-error').textContent = errors.gap;
+  getElement('max-width-error').textContent = errors.maxWidth;
 
   getElement('file-error').textContent =
     errors.file;
@@ -468,6 +503,7 @@ function validateForm() {
  * @param {FileList | File[]} files
  */
 async function receiveFiles(files) {
+  const generation = ++state.decodeGeneration;
   invalidateOutput();
 
   getElement('file-error').textContent = '';
@@ -489,9 +525,14 @@ async function receiveFiles(files) {
   const result = await decodeFiles(
     filesToDecode,
     {
-      naturalSort: inputMode === 'frames',
+      naturalSort: inputMode !== 'sheet',
     },
   );
+
+  if (generation !== state.decodeGeneration || inputMode !== getInputMode()) {
+    closeFrames(result.frames);
+    return;
+  }
 
   if (inputMode === 'sheet') {
     state.sourceSheet = result.frames[0] || null;
@@ -518,14 +559,29 @@ async function receiveFiles(files) {
  * Reset mode-specific state and controls.
  */
 function configureMode() {
+  state.decodeGeneration += 1;
   invalidateOutput();
   disposeInputResources();
   clearFrameSuggestion();
 
   const isSheetMode = getInputMode() === 'sheet';
+  const isAtlasMode = getInputMode() === 'atlas';
 
   setHidden('sheet-fields', !isSheetMode);
   setHidden('folder-label', isSheetMode);
+  setHidden('trim-field', isAtlasMode);
+  setHidden('target-field', isAtlasMode);
+  setHidden('padding-field', isAtlasMode);
+  setHidden('gap-field', !isAtlasMode);
+  setHidden('atlas-help', !isAtlasMode);
+
+  for (const option of document.querySelectorAll('.atlas-layout')) {
+    option.hidden = !isAtlasMode;
+    option.disabled = !isAtlasMode;
+  }
+  if (isAtlasMode) getElement('layout').value = 'horizontal';
+  else if (!['row', 'grid'].includes(getElement('layout').value)) getElement('layout').value = 'row';
+  updateLayoutFields();
 
   fileInput.multiple = !isSheetMode;
   fileInput.value = '';
@@ -540,7 +596,13 @@ function configureMode() {
 
   getElement('status').textContent = isSheetMode
     ? 'Grid sheet mode selected.'
-    : 'Individual frames mode selected.';
+    : isAtlasMode ? 'Multiple sprite sheets mode selected.' : 'Individual frames mode selected.';
+}
+
+function updateLayoutFields() {
+  const layout = getElement('layout').value;
+  setHidden('columns-field', layout !== 'grid');
+  setHidden('max-width-field', getInputMode() !== 'atlas' || layout !== 'compact');
 }
 
 /**
@@ -637,6 +699,18 @@ function updateOutputSummary(
   );
 }
 
+function updateAtlasOutputSummary(layout, count) {
+  const values = [
+    `${layout.width}×${layout.height} atlas`,
+    `${count} sheet${count === 1 ? '' : 's'}`,
+    `${layout.layout} layout`,
+  ];
+  if (layout.rows !== null) values.push(`${layout.rows} rows × ${layout.columns} columns`);
+  values.push(`${layout.gap} px gap`);
+  values.push(`${(layout.width * layout.height * BYTES_PER_RGBA_PIXEL / BYTES_PER_MEBIBYTE).toFixed(2)} MiB RGBA`);
+  renderSummary(getElement('output-summary'), values);
+}
+
 /**
  * Yield one animation frame so the busy state can render before processing.
  *
@@ -690,10 +764,7 @@ form.addEventListener('change', (event) => {
 
   invalidateOutput(REPROCESSING_MESSAGE);
 
-  setHidden(
-    'columns-field',
-    getElement('layout').value !== 'grid',
-  );
+  updateLayoutFields();
 
   updateTrimWarning();
   updateSourceSummary();
@@ -764,6 +835,7 @@ dropZone.addEventListener('drop', (event) => {
 getElement('clear-files').addEventListener(
   'click',
   () => {
+    state.decodeGeneration += 1;
     invalidateOutput();
     disposeInputResources();
     clearFrameSuggestion();
@@ -803,34 +875,35 @@ form.addEventListener('submit', async (event) => {
   await waitForNextPaint();
 
   try {
-    const sourceFrames = getFramesForProcessing();
-    const options = readProcessingOptions();
-
-    const processedFrames = processFrames(
-      sourceFrames,
-      options.trim,
-      options.targetSize,
-    );
-
-    const packed = packFrames(
-      processedFrames,
-      options,
-    );
-
     const basename = sanitizeBasename(
       getElement('basename').value,
     );
-
     getElement('basename').value = basename;
 
-    const png = await canvasToBlob(packed.canvas);
+    let packed;
+    let manifest;
+    if (getInputMode() === 'atlas') {
+      const rawMaxWidth = getElement('max-width').value;
+      const options = {
+        layout: getElement('layout').value,
+        gap: Number(getElement('gap').value),
+        columns: getElement('columns').value ? Number(getElement('columns').value) : 0,
+        maxWidth: rawMaxWidth ? Number(rawMaxWidth) : null,
+      };
+      const layout = calculateAtlasLayout(state.frames, options);
+      packed = renderAtlas(state.frames, layout);
+      manifest = createAtlasManifest(basename, options, layout);
+      updateAtlasOutputSummary(layout, state.frames.length);
+    } else {
+      const sourceFrames = getFramesForProcessing();
+      const options = readProcessingOptions();
+      const processedFrames = processFrames(sourceFrames, options.trim, options.targetSize);
+      packed = packFrames(processedFrames, options);
+      manifest = createManifest(basename, options, packed.geometry, processedFrames);
+      updateOutputSummary(packed.geometry, processedFrames.length);
+    }
 
-    const manifest = createManifest(
-      basename,
-      options,
-      packed.geometry,
-      processedFrames,
-    );
+    const png = await canvasToBlob(packed.canvas);
 
     state.png = png;
     state.manifest = manifest;
@@ -840,10 +913,9 @@ form.addEventListener('submit', async (event) => {
       packed.canvas,
     );
 
-    updateOutputSummary(
-      packed.geometry,
-      processedFrames.length,
-    );
+    getElement('output-title').textContent = getInputMode() === 'atlas'
+      ? 'Combined sprite-sheet atlas'
+      : 'Packed sprite sheet';
 
     setHidden('output', false);
 
@@ -851,7 +923,7 @@ form.addEventListener('submit', async (event) => {
     getElement('download-json').disabled = false;
 
     getElement('status').textContent =
-      'Sprite sheet generated successfully.';
+      getInputMode() === 'atlas' ? 'Atlas generated successfully.' : 'Sprite sheet generated successfully.';
 
     getElement('output').scrollIntoView({
       behavior: 'smooth',
