@@ -35,3 +35,15 @@ export function calculateSheetGrid(sheetW, sheetH, frameW, frameH) {
   const rows = sheetH / frameH;
   return { columns, rows, frameCount: columns * rows };
 }
+
+/** Suggest square frames only when the source is an exact horizontal or vertical strip. */
+export function suggestFrameDimensions(sourceWidth, sourceHeight) {
+  if (!Number.isInteger(sourceWidth) || !Number.isInteger(sourceHeight) || sourceWidth <= 0 || sourceHeight <= 0) return null;
+  if (sourceWidth > sourceHeight && sourceWidth % sourceHeight === 0) {
+    return { width: sourceHeight, height: sourceHeight };
+  }
+  if (sourceHeight > sourceWidth && sourceHeight % sourceWidth === 0) {
+    return { width: sourceWidth, height: sourceWidth };
+  }
+  return null;
+}

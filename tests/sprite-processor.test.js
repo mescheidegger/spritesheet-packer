@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateLayout, calculateGeometry, centeredPosition, findAlphaBounds, createManifest, frameName, scaledDimensions } from '../src/sprite-processor.js';
-import { validateInteger, sanitizeBasename, validateSheetDimensions, calculateSheetGrid } from '../src/validation.js';
+import { validateInteger, sanitizeBasename, validateSheetDimensions, calculateSheetGrid, suggestFrameDimensions } from '../src/validation.js';
 import { sliceSheet } from '../src/image-loader.js';
 
 test('automatic grid calculation creates a square-ish grid', () => assert.deepEqual(calculateLayout(10, 'grid', 0), { columns: 4, rows: 3 }));
@@ -40,4 +40,15 @@ test('sliceSheet reports a missing 2D canvas context', () => {
   globalThis.document = { createElement: () => ({ getContext: () => null }) };
   try { assert.throws(() => sliceSheet({ source: {}, width: 64, height: 64 }, 64, 64), /2D canvas context/); }
   finally { globalThis.document = originalDocument; }
+});
+test('frame dimensions are suggested only for exact square-frame strips', () => {
+  assert.deepEqual(suggestFrameDimensions(1024, 128), { width: 128, height: 128 });
+  assert.deepEqual(suggestFrameDimensions(128, 1024), { width: 128, height: 128 });
+  assert.equal(suggestFrameDimensions(512, 512), null);
+  assert.equal(suggestFrameDimensions(1000, 128), null);
+});
+test('frame dimension suggestions reject invalid source dimensions', () => {
+  for (const dimensions of [[0, 128], [-1, 128], [128.5, 128], [128, NaN], [undefined, 128]]) {
+    assert.equal(suggestFrameDimensions(...dimensions), null);
+  }
 });

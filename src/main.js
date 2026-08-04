@@ -1,7 +1,7 @@
 import './styles.css';
 import { decodeFiles, sliceSheet, closeFrames } from './image-loader.js';
 import { processFrame, packFrames, createManifest } from './sprite-processor.js';
-import { validateInteger, validateSheetDimensions, calculateSheetGrid, sanitizeBasename } from './validation.js';
+import { validateInteger, validateSheetDimensions, calculateSheetGrid, suggestFrameDimensions, sanitizeBasename } from './validation.js';
 import { canvasToBlob, downloadBlob } from './downloads.js';
 
 const $ = (id) => document.getElementById(id);
@@ -20,6 +20,20 @@ function updateSourceDimensions() {
   $('source-width').value = sheet?.width ?? '';
   $('source-height').value = sheet?.height ?? '';
   $('detected-size').textContent = sheet ? `${sheet.width} × ${sheet.height} px` : 'Upload a sheet to detect its source dimensions.';
+}
+
+function clearFrameSuggestion() {
+  $('frame-width').value = '';
+  $('frame-height').value = '';
+  $('frame-suggestion').textContent = 'Enter one frame’s dimensions.';
+}
+
+function applyFrameSuggestion() {
+  const suggestion = state.sourceSheet && suggestFrameDimensions(state.sourceSheet.width, state.sourceSheet.height);
+  if (!suggestion) return;
+  $('frame-width').value = suggestion.width;
+  $('frame-height').value = suggestion.height;
+  $('frame-suggestion').textContent = `Suggested ${suggestion.width} × ${suggestion.height} from the sheet shape. Verify before generating.`;
 }
 
 function previewFrames() {
@@ -46,8 +60,8 @@ function validate() {
 
 async function receiveFiles(files) {
   invalidate(); $('file-error').textContent = ''; const list = mode() === 'sheet' ? [...files].slice(0, 1) : [...files];
-  disposeInput(); const result = await decodeFiles(list);
-  if (mode() === 'sheet') state.sourceSheet = result.frames[0] || null;
+  disposeInput(); if (mode() === 'sheet') clearFrameSuggestion(); const result = await decodeFiles(list);
+  if (mode() === 'sheet') { state.sourceSheet = result.frames[0] || null; applyFrameSuggestion(); }
   else state.frames = result.frames;
   previewFrames();
   if (result.rejected.length) $('file-error').textContent = result.rejected.join('; ');
@@ -55,7 +69,7 @@ async function receiveFiles(files) {
 }
 
 function configureMode() {
-  invalidate(); disposeInput(); previewFrames(); const sheet = mode() === 'sheet'; setHidden('sheet-fields', !sheet); setHidden('folder-label', sheet); fileInput.multiple = !sheet; $('file-plural').textContent = sheet ? '' : 's'; fileInput.value = ''; $('folder-input').value = ''; $('file-error').textContent = ''; $('status').textContent = sheet ? 'Grid sheet mode selected.' : 'Individual frames mode selected.';
+  invalidate(); disposeInput(); clearFrameSuggestion(); previewFrames(); const sheet = mode() === 'sheet'; setHidden('sheet-fields', !sheet); setHidden('folder-label', sheet); fileInput.multiple = !sheet; $('file-plural').textContent = sheet ? '' : 's'; fileInput.value = ''; $('folder-input').value = ''; $('file-error').textContent = ''; $('status').textContent = sheet ? 'Grid sheet mode selected.' : 'Individual frames mode selected.';
 }
 
 form.addEventListener('change', (event) => { if (event.target.name === 'mode') return configureMode(); if (event.target === fileInput || event.target === $('folder-input')) return receiveFiles(event.target.files); invalidate('Options changed. Generate again to update the output.'); setHidden('columns-field', $('layout').value !== 'grid'); setHidden('trim-warning', !$('trim').checked && !$('target-size').value); updateSheetSummary(); validate(); });
@@ -65,7 +79,7 @@ dropZone.addEventListener('keydown', (event) => { if (event.key === 'Enter' || e
 for (const type of ['dragenter','dragover']) dropZone.addEventListener(type, (event) => { event.preventDefault(); dropZone.classList.add('dragging'); });
 for (const type of ['dragleave','drop']) dropZone.addEventListener(type, (event) => { event.preventDefault(); dropZone.classList.remove('dragging'); });
 dropZone.addEventListener('drop', (event) => receiveFiles(event.dataTransfer.files));
-$('clear-files').addEventListener('click', () => { invalidate(); disposeInput(); fileInput.value = ''; $('folder-input').value = ''; previewFrames(); $('status').textContent = 'Selection cleared.'; });
+$('clear-files').addEventListener('click', () => { invalidate(); disposeInput(); clearFrameSuggestion(); fileInput.value = ''; $('folder-input').value = ''; previewFrames(); $('status').textContent = 'Selection cleared.'; });
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault(); if (!validate()) return; state.busy = true; validate(); $('generate').textContent = 'Processing…'; $('status').textContent = 'Processing frames locally…'; await new Promise(requestAnimationFrame);
