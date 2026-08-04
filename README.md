@@ -6,6 +6,7 @@ A lightweight browser utility for slicing, trimming, resizing, and packing sprit
 
 - **Grid sprite sheet:** choose one image and provide its frame width and height. Source dimensions are detected automatically, and obvious horizontal or vertical strips receive a suggested square frame size. The sheet must divide evenly; frames are sliced in row-major order and named `frame_000.png`, `frame_001.png`, and so on.
 - **Individual frames:** choose or drop multiple images, or choose a folder in supporting browsers. Frames are naturally sorted by filename (`frame2` before `frame10`), and their order, dimensions, and previews are shown before processing.
+- **Multiple sprite sheets:** choose, drop, or select a folder of completed sheets. They are naturally sorted by filename and each image remains one atomic rectangle: sheets are never sliced, trimmed, resized, or rotated.
 
 PNG, GIF, JPEG, and WebP inputs are accepted where the browser supports decoding them. Animated inputs are decoded as a single bitmap; the application does not extract their individual animation frames.
 
@@ -15,6 +16,7 @@ PNG, GIF, JPEG, and WebP inputs are accepted where the browser supports decoding
 - Optional nearest-neighbor scaling to fit a square target size
 - Nonnegative padding around every content cell
 - Single-row or grid layout, with automatic or explicit column counts
+- Four atlas layouts for complete sheets: horizontal, vertical, grid, and compact
 - Checkerboard preview and downloadable transparent PNG
 - Downloadable JSON manifest compatible with the original CLI schema
 - No backend, runtime API calls, externally hosted assets, or production dependencies
@@ -58,6 +60,17 @@ No API, Python installation, or server-side processing is needed.
 ## Manifest
 
 The JSON download preserves the original CLI schema: top-level output and packing options plus a `frames` array. Every frame includes its processed index and name, row and column, processed dimensions, content-cell dimensions, padding, and the final `x`/`y` coordinates of its centered image.
+
+Multiple-sheet mode instead writes a sheet-level atlas manifest with `type: "atlas"`, the output dimensions, selected layout, effective rows and columns, gap, effective compact maximum width, and a naturally ordered `sheets` array containing each source filename, original dimensions, index, and final coordinates. Manifests belonging to the uploaded sheets are not read or merged.
+
+### Atlas layout behavior
+
+- **Horizontal** places original-size sheets left to right with top edges aligned.
+- **Vertical** places them top to bottom with left edges aligned.
+- **Grid** uses the widest and tallest inputs as the uniform cell size, centers each sheet in its cell, and supports automatic or explicit columns.
+- **Compact** deterministically packs variable-size rectangles without rotation. Its optional maximum width must be at least the widest input. When blank, a width is derived from total image area and clamped to the widest input.
+
+The nonnegative atlas gap is inserted only between sheets or grid cells. Every layout preserves source pixels and transparent space without scaling or rotation.
 
 ## Browser limitations
 
