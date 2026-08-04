@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateLayout, calculateGeometry, centeredPosition, findAlphaBounds, createManifest, frameName, scaledDimensions } from '../src/sprite-processor.js';
-import { validateInteger, sanitizeBasename, validateSheetDimensions } from '../src/validation.js';
+import { validateInteger, sanitizeBasename, validateSheetDimensions, calculateSheetGrid } from '../src/validation.js';
+import { sliceSheet } from '../src/image-loader.js';
 
 test('automatic grid calculation creates a square-ish grid', () => assert.deepEqual(calculateLayout(10, 'grid', 0), { columns: 4, rows: 3 }));
 test('explicit columns are capped at the frame count', () => assert.deepEqual(calculateLayout(3, 'grid', 12), { columns: 3, rows: 1 }));
@@ -16,3 +17,27 @@ test('manifest reports actual centered positions and retains compatible fields',
 test('sheet frame names are zero padded and ordered', () => assert.deepEqual(Array.from({ length: 3 }, (_, index) => frameName(index, 3)), ['frame_000.png', 'frame_001.png', 'frame_002.png']));
 test('scaling allows up/down scaling and preserves aspect ratio', () => { assert.deepEqual(scaledDimensions(8, 4, 16), { width: 16, height: 8 }); assert.deepEqual(scaledDimensions(40, 20, 10), { width: 10, height: 5 }); });
 test('sheet division and basename sanitization validate user input', () => { assert.match(validateSheetDimensions(10, 8, 3, 4), /do not divide/); assert.equal(validateSheetDimensions(10, 8, 5, 4), ''); assert.equal(sanitizeBasename('../../bad name.png'), 'bad_name'); assert.equal(sanitizeBasename('...'), 'out_spritesheet'); });
+test('512×256 sheet with 64px frames produces the 32-frame regression grid', () => assert.deepEqual(calculateSheetGrid(512, 256, 64, 64), { columns: 8, rows: 4, frameCount: 32 }));
+test('sheet grid rejects missing, fractional, zero, negative, oversized, and indivisible frames', () => {
+  for (const dimensions of [[undefined, 64], [1.5, 64], [0, 64], [-1, 64], [513, 64], [63, 64]]) {
+    assert.throws(() => calculateSheetGrid(512, 256, ...dimensions), RangeError);
+  }
+});
+test('sliceSheet creates 32 separate frame canvases for the regression sheet', () => {
+  const originalDocument = globalThis.document;
+  const drawCalls = [];
+  globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => ({ imageSmoothingEnabled: true, drawImage: (...args) => drawCalls.push(args) }) }) };
+  try {
+    const result = sliceSheet({ source: {}, width: 512, height: 256 }, 64, 64);
+    assert.equal(result.frames.length, 32);
+    assert.deepEqual({ columns: result.columns, rows: result.rows }, { columns: 8, rows: 4 });
+    assert.equal(drawCalls.length, 32);
+    assert.deepEqual(result.frames.map((frame) => frame.name).slice(0, 2), ['frame_000.png', 'frame_001.png']);
+  } finally { globalThis.document = originalDocument; }
+});
+test('sliceSheet reports a missing 2D canvas context', () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => ({ getContext: () => null }) };
+  try { assert.throws(() => sliceSheet({ source: {}, width: 64, height: 64 }, 64, 64), /2D canvas context/); }
+  finally { globalThis.document = originalDocument; }
+});

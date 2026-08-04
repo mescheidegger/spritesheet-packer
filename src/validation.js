@@ -16,8 +16,22 @@ export function sanitizeBasename(value) {
 }
 
 export function validateSheetDimensions(sheetW, sheetH, frameW, frameH) {
+  if (!Number.isInteger(frameW) || !Number.isInteger(frameH) || frameW <= 0 || frameH <= 0) {
+    return 'Frame width and height must be positive integers.';
+  }
+  if (frameW > sheetW || frameH > sheetH) {
+    return `Frame dimensions ${frameW}×${frameH} cannot exceed source dimensions ${sheetW}×${sheetH}.`;
+  }
   if (sheetW % frameW || sheetH % frameH) {
     return `Image dimensions ${sheetW}×${sheetH} do not divide evenly into ${frameW}×${frameH} frames.`;
   }
   return '';
+}
+
+export function calculateSheetGrid(sheetW, sheetH, frameW, frameH) {
+  const error = validateSheetDimensions(sheetW, sheetH, frameW, frameH);
+  if (error) throw new RangeError(error);
+  const columns = sheetW / frameW;
+  const rows = sheetH / frameH;
+  return { columns, rows, frameCount: columns * rows };
 }
