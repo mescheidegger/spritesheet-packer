@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+      name="description"
+      content="Trim, resize, and pack sprites locally in your browser."
+    >
+
+    <title>Sprite Sheet Packer</title>
+
+    <script
+      type="module"
+      src="/src/main.js"
+    ></script>
+  </head>
+
+  <body>
+    <main>
+      <!-- Application header -->
+      <header>
+        <p class="eyebrow">Browser utility</p>
+
+        <h1>Sprite Sheet Packer</h1>
+
+        <p>
+          Slice or combine frames, trim transparency, resize pixel art,
+          and export a packed sprite sheet.
+        </p>
+
+        <p class="privacy">
+          <strong>Private by design:</strong>
+          Processing happens entirely in your browser. The application
+          does not upload your files.
+        </p>
+      </header>
+
+      <form id="app-form" novalidate>
+        <!-- Input selection -->
+        <section class="panel">
+          <fieldset>
+            <legend>1. Choose input</legend>
+
+            <div class="mode-switch">
+              <label>
+                <input
+                  type="radio"
+                  name="mode"
+                  value="sheet"
+                  checked
+                >
+                Grid sprite sheet
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="mode"
+                  value="frames"
+                >
+                Individual frames
+              </label>
+            </div>
+
+            <!-- File drop zone -->
+            <div
+              id="drop-zone"
+              class="drop-zone"
+              tabindex="0"
+              role="button"
+              aria-describedby="file-help"
+            >
+              <strong>Drop images here</strong>
+
+              <span id="file-help">
+                Or choose files from your device
+              </span>
+
+              <div>
+                <label
+                  class="button secondary"
+                  for="file-input"
+                >
+                  Choose file<span id="file-plural"></span>
+                </label>
+
+                <input
+                  id="file-input"
+                  class="visually-hidden"
+                  type="file"
+                  accept="image/png,image/gif,image/jpeg,image/webp"
+                >
+
+                <label
+                  id="folder-label"
+                  class="button secondary hidden"
+                  for="folder-input"
+                >
+                  Choose folder
+                </label>
+
+                <input
+                  id="folder-input"
+                  class="visually-hidden"
+                  type="file"
+                  accept="image/png,image/gif,image/jpeg,image/webp"
+                  webkitdirectory
+                  multiple
+                >
+              </div>
+            </div>
+
+            <p
+              id="file-error"
+              class="error"
+              aria-live="polite"
+            ></p>
+
+            <!-- Grid-sheet slicing fields -->
+            <div id="sheet-fields">
+              <div class="field-grid">
+                <label>
+                  Source width
+
+                  <input
+                    id="source-width"
+                    type="number"
+                    readonly
+                    aria-readonly="true"
+                  >
+                </label>
+
+                <label>
+                  Source height
+
+                  <input
+                    id="source-height"
+                    type="number"
+                    readonly
+                    aria-readonly="true"
+                  >
+                </label>
+              </div>
+
+              <p id="detected-size" class="hint">
+                Upload a sheet to detect its source dimensions.
+              </p>
+
+              <div class="field-grid">
+                <label>
+                  Frame width
+
+                  <input
+                    id="frame-width"
+                    type="number"
+                    min="1"
+                    inputmode="numeric"
+                    aria-describedby="frame-suggestion frame-width-error"
+                  >
+
+                  <span
+                    id="frame-width-error"
+                    class="error"
+                  ></span>
+                </label>
+
+                <label>
+                  Frame height
+
+                  <input
+                    id="frame-height"
+                    type="number"
+                    min="1"
+                    inputmode="numeric"
+                    aria-describedby="frame-suggestion frame-height-error"
+                  >
+
+                  <span
+                    id="frame-height-error"
+                    class="error"
+                  ></span>
+                </label>
+              </div>
+
+              <p id="frame-suggestion" class="hint">
+                Enter one frame’s dimensions.
+              </p>
+            </div>
+
+            <!-- Source preview -->
+            <div
+              id="source-summary"
+              class="summary hidden"
+            ></div>
+
+            <div
+              id="source-preview"
+              class="thumbnail-grid"
+            ></div>
+
+            <button
+              id="clear-files"
+              class="text-button hidden"
+              type="button"
+            >
+              Clear selection
+            </button>
+          </fieldset>
+        </section>
+
+        <!-- Processing configuration -->
+        <section class="panel">
+          <fieldset>
+            <legend>2. Processing options</legend>
+
+            <div class="field-grid options">
+              <label>
+                <span class="check">
+                  <input
+                    id="trim"
+                    type="checkbox"
+                    aria-describedby="trim-help trim-warning"
+                  >
+
+                  Trim transparent borders
+                </span>
+
+                <span id="trim-help" class="hint">
+                  Matching animation frames are trimmed as a group to
+                  preserve their alignment.
+                </span>
+              </label>
+
+              <label>
+                Target frame size
+                <span class="hint">Optional</span>
+
+                <input
+                  id="target-size"
+                  type="number"
+                  min="1"
+                  inputmode="numeric"
+                  placeholder="e.g. 32"
+                  aria-describedby="target-help target-error"
+                >
+
+                <span id="target-help" class="hint">
+                  Each frame will be scaled proportionally to fit within
+                  this square cell.
+                </span>
+
+                <span
+                  id="target-error"
+                  class="error"
+                ></span>
+              </label>
+
+              <label>
+                Padding
+
+                <input
+                  id="padding"
+                  type="number"
+                  min="0"
+                  inputmode="numeric"
+                  value="0"
+                  aria-describedby="padding-error"
+                >
+
+                <span
+                  id="padding-error"
+                  class="error"
+                ></span>
+              </label>
+
+              <label>
+                Layout
+
+                <select id="layout">
+                  <option value="row">
+                    Single horizontal row
+                  </option>
+
+                  <option value="grid">
+                    Grid
+                  </option>
+                </select>
+              </label>
+
+              <label
+                id="columns-field"
+                class="hidden"
+              >
+                Grid columns
+
+                <span class="hint">
+                  Optional; automatic if blank
+                </span>
+
+                <input
+                  id="columns"
+                  type="number"
+                  min="1"
+                  inputmode="numeric"
+                  aria-describedby="columns-error"
+                >
+
+                <span
+                  id="columns-error"
+                  class="error"
+                ></span>
+              </label>
+
+              <label>
+                Output basename
+
+                <input
+                  id="basename"
+                  type="text"
+                  value="out_spritesheet"
+                >
+              </label>
+            </div>
+
+            <p
+              id="trim-warning"
+              class="warning hidden"
+            >
+              These frames have different source dimensions.
+              Alignment-preserving trim requires matching dimensions,
+              so each frame will be trimmed independently and animation
+              jitter may occur.
+            </p>
+          </fieldset>
+        </section>
+
+        <!-- Form actions and live status -->
+        <div class="actions">
+          <button
+            id="generate"
+            type="submit"
+            disabled
+          >
+            Generate sprite sheet
+          </button>
+
+          <button
+            id="reset"
+            class="secondary"
+            type="reset"
+          >
+            Reset
+          </button>
+
+          <span
+            id="status"
+            role="status"
+            aria-live="polite"
+          ></span>
+        </div>
+      </form>
+
+      <!-- Generated sprite-sheet output -->
+      <section
+        id="output"
+        class="panel hidden"
+        aria-labelledby="output-title"
+      >
+        <div class="output-heading">
+          <div>
+            <p class="eyebrow">Generated output</p>
+            <h2 id="output-title">Packed sprite sheet</h2>
+          </div>
+
+          <div class="actions">
+            <button
+              id="download-png"
+              type="button"
+            >
+              Download PNG
+            </button>
+
+            <button
+              id="download-json"
+              class="secondary"
+              type="button"
+            >
+              Download JSON manifest
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="output-summary"
+          class="summary"
+        ></div>
+
+        <div
+          id="canvas-mount"
+          class="checkerboard output-preview"
+        ></div>
+      </section>
+
+      <!-- Privacy and use disclosure -->
+      <footer>
+        <p>
+          <strong>Privacy:</strong>
+          Selected images are processed entirely within your browser.
+          The application does not transmit, upload, or store your image
+          files. The website’s hosting provider may process routine
+          connection and security data.
+        </p>
+
+        <p>
+          <strong>Disclaimer:</strong>
+          This tool is provided as-is, without warranties. Keep backups
+          and verify generated output before using it in a project. You
+          are responsible for ensuring that you have the right to process
+          and use the files you select.
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>
