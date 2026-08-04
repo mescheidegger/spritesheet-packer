@@ -2,12 +2,18 @@ import { frameName } from './sprite-processor.js';
 import { calculateSheetGrid } from './validation.js';
 
 const SUPPORTED = new Set(['image/png', 'image/gif', 'image/jpeg', 'image/webp']);
+const filenameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
-export async function decodeFiles(files) {
+export function sortFilesNaturally(files) {
+  return [...files].sort((a, b) => filenameCollator.compare(a.name, b.name));
+}
+
+export async function decodeFiles(files, { naturalSort = false } = {}) {
   const accepted = [...files].filter((file) => SUPPORTED.has(file.type) || /\.(png|gif|jpe?g|webp)$/i.test(file.name));
   const rejected = [...files].filter((file) => !accepted.includes(file)).map((file) => `${file.name}: unsupported format`);
   const frames = [];
-  for (const file of accepted.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
+  const ordered = naturalSort ? sortFilesNaturally(accepted) : accepted;
+  for (const file of ordered) {
     try {
       const source = await createImageBitmap(file);
       frames.push({ name: file.name, sourceIndex: frames.length, source, width: source.width, height: source.height });

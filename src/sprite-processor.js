@@ -45,6 +45,25 @@ export function findAlphaBounds(rgba, width, height) {
   return right < 0 ? null : { x: left, y: top, width: right - left + 1, height: bottom - top + 1 };
 }
 
+export function calculateUnionBounds(bounds) {
+  const visible = bounds.filter(Boolean);
+  if (!visible.length) return null;
+  const left = Math.min(...visible.map((bound) => bound.x));
+  const top = Math.min(...visible.map((bound) => bound.y));
+  const right = Math.max(...visible.map((bound) => bound.x + bound.width));
+  const bottom = Math.max(...visible.map((bound) => bound.y + bound.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+export function framesHaveMatchingDimensions(frames) {
+  return frames.length > 0 && frames.every((frame) => frame.width === frames[0].width && frame.height === frames[0].height);
+}
+
+export function trimStrategy(frames, trim) {
+  if (!trim) return 'none';
+  return framesHaveMatchingDimensions(frames) ? 'shared' : 'per-frame';
+}
+
 export function scaledDimensions(width, height, targetSize) {
   if (!Number.isInteger(targetSize) || targetSize <= 0) throw new RangeError('Target size must be a positive integer.');
   const scale = Math.min(targetSize / width, targetSize / height);
@@ -88,6 +107,29 @@ export function processFrame(frame, trim, targetSize) {
     source = resized.canvas; ({ width, height } = scaled);
   }
   return { ...frame, source, width, height };
+}
+
+function alphaBoundsForFrame(frame) {
+  const scratch = canvas(frame.width, frame.height, true);
+  scratch.context.drawImage(frame.source, 0, 0);
+  return findAlphaBounds(scratch.context.getImageData(0, 0, frame.width, frame.height).data, frame.width, frame.height);
+}
+
+function cropFrame(frame, bounds) {
+  const cropped = canvas(bounds.width, bounds.height);
+  cropped.context.drawImage(frame.source, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
+  return { ...frame, source: cropped.canvas, width: bounds.width, height: bounds.height };
+}
+
+export function processFrames(frames, trim, targetSize) {
+  const strategy = trimStrategy(frames, trim);
+  if (strategy === 'per-frame') return frames.map((frame) => processFrame(frame, true, targetSize));
+  if (strategy === 'none') return frames.map((frame) => processFrame(frame, false, targetSize));
+
+  const union = calculateUnionBounds(frames.map(alphaBoundsForFrame));
+  // An entirely transparent batch keeps its original shared coordinate system.
+  const cropped = union ? frames.map((frame) => cropFrame(frame, union)) : frames;
+  return cropped.map((frame) => processFrame(frame, false, targetSize));
 }
 
 export function packFrames(frames, options) {

@@ -5,13 +5,13 @@ A lightweight browser utility for slicing, trimming, resizing, and packing sprit
 ## Input modes
 
 - **Grid sprite sheet:** choose one image and provide its frame width and height. The sheet must divide evenly; frames are sliced in row-major order and named `frame_000.png`, `frame_001.png`, and so on.
-- **Individual frames:** choose or drop multiple images (or progressively enhance selection with **Choose folder**). Frames are sorted deterministically by filename and their order, dimensions, and previews are shown before processing.
+- **Individual frames:** choose or drop multiple images (or progressively enhance selection with **Choose folder**). Frames are naturally sorted by filename (`frame2` before `frame10`), and their order, dimensions, and previews are shown before processing.
 
 PNG, GIF, JPEG, and WebP inputs are accepted where the browser supports decoding them. Animated formats are treated according to the browser's `createImageBitmap` decoding behavior (normally the default/first frame).
 
 ## Features
 
-- Optional per-frame transparent-border trimming
+- Optional alignment-preserving transparent-border trimming for equally sized frame batches
 - Optional nearest-neighbor scaling to fit a square target size
 - Nonnegative padding around every content cell
 - Single-row or grid layout, with automatic or explicit column counts
@@ -19,7 +19,7 @@ PNG, GIF, JPEG, and WebP inputs are accepted where the browser supports decoding
 - Optional compatible JSON manifest containing layout, cell, and actual centered frame coordinates
 - No server, runtime service, network request, external asset, or production dependency
 
-> **Animation alignment:** trimming and rescaling happen independently for each frame. This changes implicit anchors and may cause baseline or animation jitter, especially for character animations.
+> **Animation alignment:** equally sized animation frames use one shared trim rectangle so poses retain their relative alignment. Differently sized inputs fall back to per-frame trimming and may exhibit animation jitter; the app warns when this fallback is needed.
 
 ## Development
 

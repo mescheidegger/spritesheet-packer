@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateLayout, calculateGeometry, centeredPosition, findAlphaBounds, createManifest, frameName, scaledDimensions } from '../src/sprite-processor.js';
+import { calculateLayout, calculateGeometry, centeredPosition, findAlphaBounds, calculateUnionBounds, trimStrategy, createManifest, frameName, scaledDimensions } from '../src/sprite-processor.js';
 import { validateInteger, sanitizeBasename, validateSheetDimensions, calculateSheetGrid, suggestFrameDimensions } from '../src/validation.js';
-import { sliceSheet } from '../src/image-loader.js';
+import { sliceSheet, sortFilesNaturally } from '../src/image-loader.js';
 
 test('automatic grid calculation creates a square-ish grid', () => assert.deepEqual(calculateLayout(10, 'grid', 0), { columns: 4, rows: 3 }));
 test('explicit columns are capped at the frame count', () => assert.deepEqual(calculateLayout(3, 'grid', 12), { columns: 3, rows: 1 }));
@@ -51,4 +51,28 @@ test('frame dimension suggestions reject invalid source dimensions', () => {
   for (const dimensions of [[0, 128], [-1, 128], [128.5, 128], [128, NaN], [undefined, 128]]) {
     assert.equal(suggestFrameDimensions(...dimensions), null);
   }
+});
+test('individual filenames use natural numeric ordering', () => {
+  const files = ['death10.png', 'death2.png', 'death1.png'].map((name) => ({ name }));
+  assert.deepEqual(sortFilesNaturally(files).map((file) => file.name), ['death1.png', 'death2.png', 'death10.png']);
+});
+test('natural filename ordering is case insensitive', () => {
+  const files = ['Death10.png', 'death2.png', 'DEATH1.png'].map((name) => ({ name }));
+  assert.deepEqual(sortFilesNaturally(files).map((file) => file.name), ['DEATH1.png', 'death2.png', 'Death10.png']);
+});
+test('union bounds retain a shared coordinate system for standing and fallen poses', () => {
+  const standing = { x: 4, y: 0, width: 2, height: 10 };
+  const fallen = { x: 0, y: 8, width: 10, height: 2 };
+  assert.deepEqual(calculateUnionBounds([standing, fallen]), { x: 0, y: 0, width: 10, height: 10 });
+});
+test('transparent frames do not invalidate visible shared bounds', () => {
+  assert.deepEqual(calculateUnionBounds([null, { x: 2, y: 3, width: 4, height: 5 }]), { x: 2, y: 3, width: 4, height: 5 });
+});
+test('fully transparent batches have no union and matching frames use shared trim', () => {
+  assert.equal(calculateUnionBounds([null, null]), null);
+  assert.equal(trimStrategy([{ width: 16, height: 16 }, { width: 16, height: 16 }], true), 'shared');
+});
+test('mismatched frame dimensions use per-frame trim fallback', () => {
+  assert.equal(trimStrategy([{ width: 16, height: 16 }, { width: 32, height: 16 }], true), 'per-frame');
+  assert.equal(trimStrategy([{ width: 16, height: 16 }], false), 'none');
 });
