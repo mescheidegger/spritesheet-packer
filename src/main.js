@@ -762,6 +762,14 @@ form.addEventListener('change', (event) => {
     return;
   }
 
+  if (target.id === 'basename') {
+    getElement('basename').value = sanitizeBasename(
+      getElement('basename').value,
+    );
+    validateForm();
+    return;
+  }
+
   invalidateOutput(REPROCESSING_MESSAGE);
 
   updateLayoutFields();
