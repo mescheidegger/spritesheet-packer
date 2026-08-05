@@ -38,17 +38,35 @@ test('vertical preserves order, left alignment, dimensions, and gaps', () => {
   assert.deepEqual([layout.rows, layout.columns], [3, 1]);
 });
 
-test('grid supports automatic columns and centers variable sheets', () => {
+test('grid supports automatic columns and top-left aligns variable sheets', () => {
   const layout = calculateAtlasLayout(items, { layout: 'grid', gap: 2 });
+
   assert.deepEqual([layout.rows, layout.columns, layout.width, layout.height], [2, 2, 62, 42]);
-  assert.deepEqual(layout.placements[0], { index: 0, x: 10, y: 0, w: 10, h: 20 });
-  assert.deepEqual(layout.placements[1], { index: 1, x: 32, y: 5, w: 30, h: 10 });
-  assert.deepEqual(layout.placements[2], { index: 2, x: 9, y: 26, w: 12, h: 12 });
+  assert.deepEqual(layout.placements[0], { index: 0, x: 0, y: 0, w: 10, h: 20 });
+  assert.deepEqual(layout.placements[1], { index: 1, x: 32, y: 0, w: 30, h: 10 });
+  assert.deepEqual(layout.placements[2], { index: 2, x: 0, y: 22, w: 12, h: 12 });
+  assert.equal(layout.placements[0].x, layout.placements[2].x);
+  assert.equal(layout.placements[0].y, layout.placements[1].y);
+  assertInside(layout);
+  for (let i = 0; i < layout.placements.length; i += 1) {
+    for (let j = i + 1; j < layout.placements.length; j += 1) {
+      assert.equal(overlap(layout.placements[i], layout.placements[j]), false);
+    }
+  }
 });
 
-test('grid honors explicit columns', () => {
+test('grid honors explicit columns, gaps, and dimensions with top-left placement', () => {
   const layout = calculateAtlasLayout(items, { layout: 'grid', columns: 3, gap: 5 });
+
   assert.deepEqual([layout.rows, layout.columns, layout.width, layout.height], [1, 3, 100, 20]);
+  assert.deepEqual(layout.placements.map(({ x, y }) => ({ x, y })), [
+    { x: 0, y: 0 },
+    { x: 35, y: 0 },
+    { x: 70, y: 0 },
+  ]);
+  assert.equal(layout.placements[0].y, layout.placements[1].y);
+  assert.equal(layout.placements[1].y, layout.placements[2].y);
+  assertInside(layout);
 });
 
 test('compact is deterministic, bounded, nonoverlapping, and retains original indexes', () => {

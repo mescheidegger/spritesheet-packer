@@ -216,7 +216,7 @@ function calculateVertical(items, gap, widest) {
 }
 
 /**
- * Center sheets within uniformly sized grid cells.
+ * Place sheets at the top-left of uniformly sized grid cells.
  *
  * @param {AtlasItem[]} items
  * @param {number} gap
@@ -248,12 +248,8 @@ function calculateGrid(
 
     return {
       index,
-      x:
-        column * (widest + gap) +
-        Math.floor((widest - item.width) / 2),
-      y:
-        row * (tallest + gap) +
-        Math.floor((tallest - item.height) / 2),
+      x: column * (widest + gap),
+      y: row * (tallest + gap),
       w: item.width,
       h: item.height,
     };
