@@ -1,5 +1,11 @@
 import { frameName } from './sprite-processor.js';
 import { calculateSheetGrid } from './validation.js';
+import {
+  validateDecodedImage,
+  validateFiles,
+  validateSheetSlicingPlan,
+  validateTotalDecodedPixels,
+} from './resource-limits.js';
 
 
 /**
@@ -109,15 +115,33 @@ export async function decodeFiles(
     }
   }
 
+  validateFiles(acceptedFiles);
+
   const orderedFiles = naturalSort
     ? sortFilesNaturally(acceptedFiles)
     : acceptedFiles;
 
   const frames = [];
+  let totalDecodedPixels = 0;
 
   for (const file of orderedFiles) {
     try {
       const source = await createImageBitmap(file);
+
+      try {
+        const { pixels } = validateDecodedImage(
+          file.name,
+          source.width,
+          source.height,
+        );
+        totalDecodedPixels = validateTotalDecodedPixels(
+          totalDecodedPixels,
+          pixels,
+        );
+      } catch (error) {
+        source.close?.();
+        throw error;
+      }
 
       frames.push({
         name: file.name,
@@ -126,9 +150,11 @@ export async function decodeFiles(
         width: source.width,
         height: source.height,
       });
-    } catch {
+    } catch (error) {
       rejected.push(
-        `${file.name}: browser could not decode this image`,
+        error instanceof RangeError
+          ? error.message
+          : `${file.name}: browser could not decode this image`,
       );
     }
   }
@@ -174,6 +200,13 @@ export function sliceSheet(
     rows,
     frameCount,
   } = calculateSheetGrid(
+    sheet.width,
+    sheet.height,
+    frameWidth,
+    frameHeight,
+  );
+
+  validateSheetSlicingPlan(
     sheet.width,
     sheet.height,
     frameWidth,

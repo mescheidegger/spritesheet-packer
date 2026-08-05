@@ -1,3 +1,5 @@
+import { safeAdd, safeMultiply, validateCanvasAllocation } from './resource-limits.js';
+
 /**
  * @typedef {'horizontal'|'vertical'|'grid'|'compact'} AtlasLayout
  */
@@ -98,7 +100,11 @@ function validateInputs(items, options) {
 
     widest = Math.max(widest, item.width);
     tallest = Math.max(tallest, item.height);
-    totalArea += item.width * item.height;
+    totalArea = safeAdd(
+      'Total atlas input area',
+      totalArea,
+      safeMultiply('Atlas item area', item.width, item.height),
+    );
   }
 
   const gap = options.gap ?? 0;
@@ -162,7 +168,7 @@ function calculateHorizontal(items, gap, tallest) {
       h: item.height,
     };
 
-    x += item.width + gap;
+    x = safeAdd('Horizontal atlas width', x, item.width, gap);
 
     return placement;
   });
@@ -200,7 +206,7 @@ function calculateVertical(items, gap, widest) {
       h: item.height,
     };
 
-    y += item.height + gap;
+    y = safeAdd('Vertical atlas height', y, item.height, gap);
 
     return placement;
   });
@@ -248,16 +254,16 @@ function calculateGrid(
 
     return {
       index,
-      x: column * (widest + gap),
-      y: row * (tallest + gap),
+      x: safeMultiply('Grid atlas x', column, safeAdd('Grid atlas cell width', widest, gap)),
+      y: safeMultiply('Grid atlas y', row, safeAdd('Grid atlas cell height', tallest, gap)),
       w: item.width,
       h: item.height,
     };
   });
 
   return {
-    width: columns * widest + (columns - 1) * gap,
-    height: rows * tallest + (rows - 1) * gap,
+    width: safeAdd('Grid atlas width', safeMultiply('Grid atlas width', columns, widest), safeMultiply('Grid atlas horizontal gaps', columns - 1, gap)),
+    height: safeAdd('Grid atlas height', safeMultiply('Grid atlas height', rows, tallest), safeMultiply('Grid atlas vertical gaps', rows - 1, gap)),
     rows,
     columns,
     maxWidth: null,
@@ -326,7 +332,7 @@ function calculateCompact(
 
   for (const { item, index } of ordered) {
     if (x > 0 && x + item.width > maxWidth) {
-      y += shelfHeight + gap;
+      y = safeAdd('Compact atlas y', y, shelfHeight, gap);
       x = 0;
       shelfHeight = 0;
     }
@@ -341,7 +347,7 @@ function calculateCompact(
 
     usedWidth = Math.max(
       usedWidth,
-      x + item.width,
+      safeAdd('Compact atlas used width', x, item.width),
     );
 
     shelfHeight = Math.max(
@@ -349,12 +355,12 @@ function calculateCompact(
       item.height,
     );
 
-    x += item.width + gap;
+    x = safeAdd('Horizontal atlas width', x, item.width, gap);
   }
 
   return {
     width: usedWidth,
-    height: y + shelfHeight,
+    height: safeAdd('Compact atlas height', y, shelfHeight),
     rows: null,
     columns: null,
     maxWidth,
@@ -483,6 +489,12 @@ export function calculateAtlasLayout(
     );
   }
 
+  validateCanvasAllocation(
+    geometry.width,
+    geometry.height,
+    'This atlas layout',
+  );
+
   validatePlacements(
     geometry.placements,
     items.length,
@@ -516,6 +528,12 @@ export function calculateAtlasLayout(
  * }}
  */
 export function renderAtlas(items, layout) {
+  validateCanvasAllocation(
+    layout.width,
+    layout.height,
+    'This atlas layout',
+  );
+
   const canvas = document.createElement('canvas');
 
   canvas.width = layout.width;

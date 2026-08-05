@@ -1,3 +1,4 @@
+import { assertSafeInteger, safeMultiply } from './resource-limits.js';
 const DEFAULT_BASENAME = 'out_spritesheet';
 const OUTPUT_EXTENSION_PATTERN = /\.(png|json)$/i;
 const INVALID_BASENAME_CHARACTERS = /[^a-z0-9._-]+/gi;
@@ -154,10 +155,13 @@ export function calculateSheetGrid(
   const columns = sheetWidth / frameWidth;
   const rows = sheetHeight / frameHeight;
 
+  assertSafeInteger('Sheet columns', columns, { minimum: 1 });
+  assertSafeInteger('Sheet rows', rows, { minimum: 1 });
+
   return {
     columns,
     rows,
-    frameCount: columns * rows,
+    frameCount: safeMultiply('Frame count', columns, rows),
   };
 }
 

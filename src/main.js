@@ -32,10 +32,13 @@ import {
 } from './atlas-packer.js';
 import { createDownloadableManifest } from './manifest-download.js';
 import { createStoredZip } from './zip-writer.js';
+import { validateCanvasAllocation, validateSheetSlicingPlan } from './resource-limits.js';
 
 
 const BYTES_PER_RGBA_PIXEL = 4;
 const BYTES_PER_MEBIBYTE = 1024 ** 2;
+const MAX_THUMBNAIL_WIDTH = 256;
+const MAX_THUMBNAIL_HEIGHT = 128;
 
 const REPROCESSING_MESSAGE =
   'Options changed. Generate again to update the output.';
@@ -257,8 +260,22 @@ function previewFrames() {
 
     item.className = 'thumb';
 
-    previewCanvas.width = frame.width;
-    previewCanvas.height = frame.height;
+    const scale = Math.min(
+      1,
+      MAX_THUMBNAIL_WIDTH / frame.width,
+      MAX_THUMBNAIL_HEIGHT / frame.height,
+    );
+    const thumbnailWidth = Math.max(1, Math.round(frame.width * scale));
+    const thumbnailHeight = Math.max(1, Math.round(frame.height * scale));
+
+    validateCanvasAllocation(
+      thumbnailWidth,
+      thumbnailHeight,
+      'This thumbnail',
+    );
+
+    previewCanvas.width = thumbnailWidth;
+    previewCanvas.height = thumbnailHeight;
 
     const context = previewCanvas.getContext('2d');
 
@@ -269,7 +286,17 @@ function previewFrames() {
     }
 
     context.imageSmoothingEnabled = false;
-    context.drawImage(frame.source, 0, 0);
+    context.drawImage(
+      frame.source,
+      0,
+      0,
+      frame.width,
+      frame.height,
+      0,
+      0,
+      thumbnailWidth,
+      thumbnailHeight,
+    );
 
     frameNumber.textContent = String(index + 1);
     details.textContent =
@@ -524,37 +551,44 @@ async function receiveFiles(files) {
     clearFrameSuggestion();
   }
 
-  const result = await decodeFiles(
-    filesToDecode,
-    {
-      naturalSort: inputMode !== 'sheet',
-    },
-  );
+  try {
+    const result = await decodeFiles(
+      filesToDecode,
+      {
+        naturalSort: inputMode !== 'sheet',
+      },
+    );
 
-  if (generation !== state.decodeGeneration || inputMode !== getInputMode()) {
-    closeFrames(result.frames);
-    return;
+    if (generation !== state.decodeGeneration || inputMode !== getInputMode()) {
+      closeFrames(result.frames);
+      return;
+    }
+
+    if (inputMode === 'sheet') {
+      state.sourceSheet = result.frames[0] || null;
+      applyFrameSuggestion();
+    } else {
+      state.frames = result.frames;
+    }
+
+    previewFrames();
+
+    if (result.rejected.length > 0) {
+      getElement('file-error').textContent =
+        result.rejected.join('; ');
+    }
+
+    const count = getSelectedFrames().length;
+
+    getElement('status').textContent = count > 0
+      ? `Loaded ${count} image${count === 1 ? '' : 's'}.`
+      : 'No usable images were selected.';
+  } catch (error) {
+    disposeInputResources();
+    previewFrames();
+    getElement('file-error').textContent = errorMessage(error);
+    getElement('status').textContent = 'Image selection was rejected.';
   }
-
-  if (inputMode === 'sheet') {
-    state.sourceSheet = result.frames[0] || null;
-    applyFrameSuggestion();
-  } else {
-    state.frames = result.frames;
-  }
-
-  previewFrames();
-
-  if (result.rejected.length > 0) {
-    getElement('file-error').textContent =
-      result.rejected.join('; ');
-  }
-
-  const count = getSelectedFrames().length;
-
-  getElement('status').textContent = count > 0
-    ? `Loaded ${count} image${count === 1 ? '' : 's'}.`
-    : 'No usable images were selected.';
 }
 
 /**
@@ -1020,6 +1054,10 @@ getElement('download-frames-zip').addEventListener(
       return;
     }
 
+    let frames = [];
+    let entries = [];
+    let zipBlob = null;
+
     try {
       const frameWidth = Number(getElement('frame-width').value);
       const frameHeight = Number(getElement('frame-height').value);
@@ -1039,6 +1077,13 @@ getElement('download-frames-zip').addEventListener(
         throw new Error(validationError);
       }
 
+      validateSheetSlicingPlan(
+        state.sourceSheet.width,
+        state.sourceSheet.height,
+        frameWidth,
+        frameHeight,
+      );
+
       state.busy = true;
       validateForm();
       getElement('download-frames-zip').textContent = 'Preparing ZIP…';
@@ -1050,8 +1095,7 @@ getElement('download-frames-zip').addEventListener(
       const basename = sanitizeBasename(getElement('basename').value);
       getElement('basename').value = basename;
 
-      const { frames } = sliceSheet(state.sourceSheet, frameWidth, frameHeight);
-      const entries = [];
+      frames = sliceSheet(state.sourceSheet, frameWidth, frameHeight).frames;
 
       for (const [index, frame] of frames.entries()) {
         getElement('status').textContent =
@@ -1063,18 +1107,22 @@ getElement('download-frames-zip').addEventListener(
         });
       }
 
-      const zipBlob = await createStoredZip(entries);
+      zipBlob = await createStoredZip(entries);
 
       downloadBlob(zipBlob, `${basename}_frames.zip`);
 
       getElement('status').textContent =
         `Downloaded ${frames.length} sliced frame${frames.length === 1 ? '' : 's'} as ZIP.`;
+
     } catch (error) {
       console.error(error);
       getElement('file-error').textContent =
         `Could not export sliced frames: ${errorMessage(error)}`;
       getElement('status').textContent = 'ZIP export failed.';
     } finally {
+      entries = [];
+      frames = [];
+      zipBlob = null;
       state.busy = false;
       getElement('download-frames-zip').textContent =
         'Download sliced frames (.zip)';
