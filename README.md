@@ -58,6 +58,20 @@ npm run build -- --base=/repository-name/
 
 No API, Python installation, or server-side processing is needed.
 
+### Cloudflare Pages security headers
+
+Production browser security headers for Cloudflare Pages are defined in `public/_headers`. Vite copies files from `public/` unchanged, so production builds include the rules as `dist/_headers` for Cloudflare Pages to apply to static responses.
+
+The configured policy is an enforcing Content Security Policy and related browser hardening headers for the static application. The policy allows same-origin JavaScript, CSS, fonts, and production assets, plus `data:` and `blob:` image sources for local previews. Blob-based PNG, JSON, and ZIP downloads are created from `Blob` object URLs and do not require adding `blob:` to unrelated CSP directives.
+
+Cloudflare's `_headers` processing is a deployment feature: `vite dev` and `vite preview` do not emulate those response headers. After deploying, verify the live document response through the browser Network panel or with a command such as:
+
+```bash
+curl -sI https://your-deployed-domain.example/
+```
+
+Do not treat local Vite output as proof that Cloudflare has applied the headers; inspect an actual Cloudflare Pages deployment when one is available.
+
 ## Grid frame ZIP export
 
 In Grid sprite sheet mode, use **Download sliced frames (.zip)** to save the original grid slices as individual PNG files in one archive. The button is available only after a source sheet is loaded and the selected frame width and height divide the sheet dimensions evenly.
