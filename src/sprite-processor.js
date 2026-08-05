@@ -620,6 +620,7 @@ export function processFrames(
  * }} options
  * @param {SheetGeometry} geometry
  * @param {Frame[]} frames
+ * @param {object | null | undefined} input
  * @returns {object}
  */
 export function createManifest(
@@ -627,6 +628,7 @@ export function createManifest(
   options,
   geometry,
   frames,
+  input,
 ) {
   const manifestFrames = frames.map((frame, index) => {
     const position = centeredPosition(
@@ -661,6 +663,7 @@ export function createManifest(
     padding: options.padding,
     trim: options.trim,
     target_size: options.targetSize,
+    ...(input ? { input } : {}),
     frames: manifestFrames,
   };
 }

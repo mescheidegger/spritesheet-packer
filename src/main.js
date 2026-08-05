@@ -669,6 +669,36 @@ function getFramesForProcessing() {
 }
 
 /**
+ * Build source input metadata for the sprite-sheet manifest.
+ *
+ * @param {Array} sourceFrames
+ * @returns {object}
+ */
+function getManifestInput(sourceFrames) {
+  if (getInputMode() === 'frames') {
+    return {
+      mode: 'frames',
+      count: sourceFrames.length,
+    };
+  }
+
+  if (!state.sourceSheet) {
+    throw new Error(
+      'A decoded source sheet is required.',
+    );
+  }
+
+  return {
+    mode: 'sheet',
+    name: state.sourceSheet.name,
+    width: state.sourceSheet.width,
+    height: state.sourceSheet.height,
+    frame_w: Number(getElement('frame-width').value),
+    frame_h: Number(getElement('frame-height').value),
+  };
+}
+
+/**
  * Render output geometry and memory information.
  *
  * @param {object} geometry
@@ -904,10 +934,11 @@ form.addEventListener('submit', async (event) => {
       updateAtlasOutputSummary(layout, state.frames.length);
     } else {
       const sourceFrames = getFramesForProcessing();
+      const input = getManifestInput(sourceFrames);
       const options = readProcessingOptions();
       const processedFrames = processFrames(sourceFrames, options.trim, options.targetSize);
       packed = packFrames(processedFrames, options);
-      manifest = createManifest(basename, options, packed.geometry, processedFrames);
+      manifest = createManifest(basename, options, packed.geometry, processedFrames, input);
       updateOutputSummary(packed.geometry, processedFrames.length);
     }
 

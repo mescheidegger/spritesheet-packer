@@ -14,6 +14,40 @@ test('integer validation rejects zero/negative positive fields and permits zero 
 test('alpha bounds find the smallest nontransparent rectangle', () => { const rgba = new Uint8Array(4 * 4 * 3); rgba[(1 * 4 + 1) * 4 + 3] = 1; rgba[(2 * 4 + 3) * 4 + 3] = 255; assert.deepEqual(findAlphaBounds(rgba, 4, 3), { x: 1, y: 1, width: 3, height: 2 }); });
 test('fully transparent alpha data returns null', () => assert.equal(findAlphaBounds(new Uint8Array(2 * 2 * 4), 2, 2), null));
 test('manifest reports actual centered positions and retains compatible fields', () => { const geometry = calculateGeometry(1, 10, 10, 2, 'grid', 0); const result = createManifest('sprites', { layout: 'grid', columns: 0, padding: 2, trim: true, targetSize: null }, geometry, [{ name: 'a.png', sourceIndex: 4, width: 4, height: 6 }]); assert.deepEqual(result.frames[0], { index: 4, name: 'a.png', row: 0, col: 0, x: 5, y: 4, w: 4, h: 6, cell_w: 10, cell_h: 10, padding: 2 }); assert.equal(result.columns, 'auto'); assert.equal(result.output, 'sprites.png'); });
+
+test('grid manifest includes source sheet input metadata and preserves synthetic frame names', () => {
+  const geometry = calculateGeometry(2, 23, 32, 0, 'row', 0);
+  const input = { mode: 'sheet', name: 'death-animation.png', width: 184, height: 32, frame_w: 23, frame_h: 32 };
+  const result = createManifest('sprites', { layout: 'row', columns: 0, padding: 0, trim: false, targetSize: null }, geometry, [
+    { name: 'frame_000.png', sourceIndex: 0, width: 23, height: 32 },
+    { name: 'frame_001.png', sourceIndex: 1, width: 23, height: 32 },
+  ], input);
+
+  assert.deepEqual(result.input, input);
+  assert.deepEqual(result.frames.map((frame) => frame.name), ['frame_000.png', 'frame_001.png']);
+  assert.equal(result.output, 'sprites.png');
+  assert.equal(result.layout, 'row');
+  assert.equal(result.columns, null);
+  assert.equal(result.cell_w, 23);
+  assert.equal(result.cell_h, 32);
+  assert.equal(result.padding, 0);
+  assert.equal(result.trim, false);
+  assert.equal(result.target_size, null);
+  assert.deepEqual(result.frames[0], { index: 0, name: 'frame_000.png', row: 0, col: 0, x: 0, y: 0, w: 23, h: 32, cell_w: 23, cell_h: 32, padding: 0 });
+});
+
+test('individual-frame manifest includes input count and keeps naturally ordered filenames', () => {
+  const orderedFiles = sortFilesNaturally(['death10.png', 'death2.png', 'death1.png'].map((name) => ({ name })));
+  const frames = orderedFiles.map((file, index) => ({ name: file.name, sourceIndex: index, width: 16, height: 16 }));
+  const geometry = calculateGeometry(frames.length, 16, 16, 1, 'grid', 2);
+  const result = createManifest('sprites', { layout: 'grid', columns: 2, padding: 1, trim: true, targetSize: 16 }, geometry, frames, { mode: 'frames', count: frames.length });
+
+  assert.deepEqual(result.input, { mode: 'frames', count: 3 });
+  assert.deepEqual(result.frames.map((frame) => frame.name), ['death1.png', 'death2.png', 'death10.png']);
+  assert.deepEqual(result.frames.map((frame) => frame.index), [0, 1, 2]);
+  assert.equal(result.columns, 2);
+  assert.deepEqual(result.frames[0], { index: 0, name: 'death1.png', row: 0, col: 0, x: 1, y: 1, w: 16, h: 16, cell_w: 16, cell_h: 16, padding: 1 });
+});
 test('sheet frame names are zero padded and ordered', () => assert.deepEqual(Array.from({ length: 3 }, (_, index) => frameName(index, 3)), ['frame_000.png', 'frame_001.png', 'frame_002.png']));
 test('scaling allows up/down scaling and preserves aspect ratio', () => { assert.deepEqual(scaledDimensions(8, 4, 16), { width: 16, height: 8 }); assert.deepEqual(scaledDimensions(40, 20, 10), { width: 10, height: 5 }); });
 test('sheet division and basename sanitization validate user input', () => { assert.match(validateSheetDimensions(10, 8, 3, 4), /do not divide/); assert.equal(validateSheetDimensions(10, 8, 5, 4), ''); assert.equal(sanitizeBasename('../../bad name.png'), 'bad_name'); assert.equal(sanitizeBasename('...'), 'out_spritesheet'); });
