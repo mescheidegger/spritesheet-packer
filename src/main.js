@@ -30,6 +30,7 @@ import {
   createAtlasManifest,
   renderAtlas,
 } from './atlas-packer.js';
+import { createDownloadableManifest } from './manifest-download.js';
 
 
 const BYTES_PER_RGBA_PIXEL = 4;
@@ -44,7 +45,6 @@ const EDITABLE_OPTION_IDS = new Set([
   'target-size',
   'padding',
   'columns',
-  'basename',
   'gap',
   'max-width',
 ]);
@@ -980,9 +980,10 @@ getElement('download-json').addEventListener(
     const basename = sanitizeBasename(
       getElement('basename').value,
     );
+    getElement('basename').value = basename;
 
     const contents = JSON.stringify(
-      state.manifest,
+      createDownloadableManifest(state.manifest, basename),
       null,
       2,
     );
