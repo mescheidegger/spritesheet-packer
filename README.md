@@ -4,7 +4,7 @@ A lightweight browser utility for slicing, trimming, resizing, and packing sprit
 
 ## Input modes
 
-- **Grid sprite sheet:** choose one image and provide its frame width and height. Source dimensions are detected automatically, and obvious horizontal or vertical strips receive a suggested square frame size. The sheet must divide evenly; frames are sliced in row-major order and named `frame_000.png`, `frame_001.png`, and so on.
+- **Grid sprite sheet:** choose one image and provide its frame width and height. Source dimensions are detected automatically, and obvious horizontal or vertical strips receive a suggested square frame size. The sheet must divide evenly; frames are sliced in row-major order and named `frame_000.png`, `frame_001.png`, and so on. Grid sheets can also be exported as individual PNG frames in one ZIP archive.
 - **Individual frames:** choose or drop multiple images, or choose a folder in supporting browsers. Frames are naturally sorted by filename (`frame2` before `frame10`), and their order, dimensions, and previews are shown before processing.
 - **Multiple sprite sheets:** choose, drop, or select a folder of completed sheets. They are naturally sorted by filename and each image remains one atomic rectangle: sheets are never sliced, trimmed, resized, or rotated.
 
@@ -19,6 +19,7 @@ PNG, GIF, JPEG, and WebP inputs are accepted where the browser supports decoding
 - Four atlas layouts for complete sheets: horizontal, vertical, grid, and compact
 - Checkerboard preview and downloadable transparent PNG
 - Downloadable JSON manifest compatible with the original CLI schema
+- Browser-only ZIP export for raw grid-sheet slices, with no production dependency
 - No backend, runtime API calls, externally hosted assets, or production dependencies
 
 > **Animation alignment:** Equally sized animation frames use one shared trim rectangle so poses retain their relative alignment. Differently sized inputs fall back to per-frame trimming and may exhibit animation jitter; the app warns when this fallback is needed.
@@ -56,6 +57,14 @@ npm run build -- --base=/repository-name/
 ```
 
 No API, Python installation, or server-side processing is needed.
+
+## Grid frame ZIP export
+
+In Grid sprite sheet mode, use **Download sliced frames (.zip)** to save the original grid slices as individual PNG files in one archive. The button is available only after a source sheet is loaded and the selected frame width and height divide the sheet dimensions evenly.
+
+The ZIP export uses the same row-major slicing and generated frame names as normal grid processing, but it intentionally skips all packing-stage options: no transparent-border trimming, target-size scaling, frame padding, or atlas layout processing is applied. Each PNG in the archive is an exact raw slice with the selected frame dimensions.
+
+ZIP creation happens entirely in the browser with a small built-in ZIP32 writer using stored PNG entries. It performs no network requests, uses no backend service, and adds no production dependency.
 
 ## Manifest
 

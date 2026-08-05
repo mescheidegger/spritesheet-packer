@@ -31,6 +31,7 @@ import {
   renderAtlas,
 } from './atlas-packer.js';
 import { createDownloadableManifest } from './manifest-download.js';
+import { createStoredZip } from './zip-writer.js';
 
 
 const BYTES_PER_RGBA_PIXEL = 4;
@@ -493,6 +494,7 @@ function validateForm() {
     !state.busy;
 
   getElement('generate').disabled = !isValid;
+  updateZipDownloadAvailability();
 
   return isValid;
 }
@@ -574,6 +576,7 @@ function configureMode() {
   setHidden('padding-field', isAtlasMode);
   setHidden('gap-field', !isAtlasMode);
   setHidden('atlas-help', !isAtlasMode);
+  setHidden('download-frames-zip', !isSheetMode);
 
   for (const option of document.querySelectorAll('.atlas-layout')) {
     option.hidden = !isAtlasMode;
@@ -758,6 +761,25 @@ function waitForNextPaint() {
  * @param {unknown} error
  * @returns {string}
  */
+function updateZipDownloadAvailability() {
+  const button = getElement('download-frames-zip');
+
+  if (getInputMode() !== 'sheet') {
+    button.disabled = true;
+    return;
+  }
+
+  const frameWidth = Number(getElement('frame-width').value);
+  const frameHeight = Number(getElement('frame-height').value);
+  const isValid = Boolean(state.sourceSheet) &&
+    !state.busy &&
+    validateInteger(getElement('frame-width').value, { label: 'Frame width' }) === '' &&
+    validateInteger(getElement('frame-height').value, { label: 'Frame height' }) === '' &&
+    validateSheetDimensions(state.sourceSheet.width, state.sourceSheet.height, frameWidth, frameHeight) === '';
+
+  button.disabled = !isValid;
+}
+
 function errorMessage(error) {
   return error instanceof Error
     ? error.message
@@ -990,6 +1012,77 @@ form.addEventListener('submit', async (event) => {
 // ---------------------------------------------------------------------------
 // Downloads and lifecycle
 // ---------------------------------------------------------------------------
+
+getElement('download-frames-zip').addEventListener(
+  'click',
+  async () => {
+    if (getInputMode() !== 'sheet' || state.busy) {
+      return;
+    }
+
+    try {
+      const frameWidth = Number(getElement('frame-width').value);
+      const frameHeight = Number(getElement('frame-height').value);
+
+      if (!state.sourceSheet) {
+        throw new Error('Load a source sheet before exporting sliced frames.');
+      }
+
+      const validationError = validateSheetDimensions(
+        state.sourceSheet.width,
+        state.sourceSheet.height,
+        frameWidth,
+        frameHeight,
+      );
+
+      if (validationError) {
+        throw new Error(validationError);
+      }
+
+      state.busy = true;
+      validateForm();
+      getElement('download-frames-zip').textContent = 'Preparing ZIP…';
+      getElement('status').textContent = 'Preparing sliced frames ZIP…';
+      getElement('file-error').textContent = '';
+
+      await waitForNextPaint();
+
+      const basename = sanitizeBasename(getElement('basename').value);
+      getElement('basename').value = basename;
+
+      const { frames } = sliceSheet(state.sourceSheet, frameWidth, frameHeight);
+      const entries = [];
+
+      for (const [index, frame] of frames.entries()) {
+        getElement('status').textContent =
+          `Preparing frame ${index + 1} of ${frames.length}…`;
+
+        entries.push({
+          filename: frame.name,
+          contents: await canvasToBlob(frame.source),
+        });
+      }
+
+      const zipBlob = await createStoredZip(entries);
+
+      downloadBlob(zipBlob, `${basename}_frames.zip`);
+
+      getElement('status').textContent =
+        `Downloaded ${frames.length} sliced frame${frames.length === 1 ? '' : 's'} as ZIP.`;
+    } catch (error) {
+      console.error(error);
+      getElement('file-error').textContent =
+        `Could not export sliced frames: ${errorMessage(error)}`;
+      getElement('status').textContent = 'ZIP export failed.';
+    } finally {
+      state.busy = false;
+      getElement('download-frames-zip').textContent =
+        'Download sliced frames (.zip)';
+      validateForm();
+    }
+  },
+);
+
 
 getElement('download-png').addEventListener(
   'click',
