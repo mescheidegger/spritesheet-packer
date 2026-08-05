@@ -71,7 +71,7 @@ Multiple-sheet mode instead writes a sheet-level atlas manifest with `type: "atl
 
 - **Horizontal** places original-size sheets left to right with top edges aligned.
 - **Vertical** places them top to bottom with left edges aligned.
-- **Grid** uses the widest and tallest inputs as the uniform cell size, centers each sheet in its cell, and supports automatic or explicit columns.
+- **Grid** uses the widest and tallest inputs as the uniform cell size, places each sheet at the top-left of its cell, and supports automatic or explicit columns.
 - **Compact** deterministically packs variable-size rectangles without rotation. Its optional maximum width must be at least the widest input. When blank, a width is derived from total image area and clamped to the widest input.
 
 The nonnegative atlas gap is inserted only between sheets or grid cells. Every layout preserves source pixels and transparent space without scaling or rotation.
