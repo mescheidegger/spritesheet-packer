@@ -87,4 +87,6 @@ The nonnegative atlas gap is inserted only between sheets or grid cells. Every l
 
 ## Browser limitations
 
-Maximum canvas dimensions and memory vary by browser and device. The app reports allocation, rendering, or PNG-export failures rather than assuming one universal limit. Very large inputs still process on the main thread with a visible busy status. Animated inputs are not expanded into multiple frames.
+The app enforces conservative client-side limits to protect browser responsiveness and memory while keeping all rejected files local and never uploaded. A selection may include up to 512 supported files, each no larger than 25 MiB compressed, with at most 100 MiB total compressed input. After browser decoding, each image must be no larger than 16,384 pixels on either side or 32,000,000 decoded pixels, and one accepted batch may hold up to 64,000,000 decoded pixels. Grid sheets may produce up to 2,048 sliced frames. Output canvases, resized intermediate frames, and atlas layouts are limited to 16,384 pixels on either side and 32,000,000 total pixels.
+
+Compressed file size and decoded pixel size are separate checks: a small PNG can still decode to too many pixels. These limits are application safeguards, not universal browser capabilities, and browser-specific canvas or PNG-export limits can still be lower. The application still runs entirely in the browser with no backend, runtime network request, automatic downscaling, or production dependency. Animated inputs are not expanded into multiple frames.

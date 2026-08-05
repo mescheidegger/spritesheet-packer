@@ -1,3 +1,5 @@
+import { safeAdd, safeMultiply, validateCanvasAllocation } from './resource-limits.js';
+
 /**
  * A sprite frame moving through the processing pipeline.
  *
@@ -165,8 +167,9 @@ export function calculateGeometry(
     requestedColumns,
   );
 
-  const fullCellWidth = cellWidth + padding * 2;
-  const fullCellHeight = cellHeight + padding * 2;
+  const doubledPadding = safeMultiply('Doubled padding', padding, 2);
+  const fullCellWidth = safeAdd('Full cell width', cellWidth, doubledPadding);
+  const fullCellHeight = safeAdd('Full cell height', cellHeight, doubledPadding);
 
   return {
     columns,
@@ -175,8 +178,8 @@ export function calculateGeometry(
     cellH: cellHeight,
     fullCellW: fullCellWidth,
     fullCellH: fullCellHeight,
-    sheetW: columns * fullCellWidth,
-    sheetH: rows * fullCellHeight,
+    sheetW: safeMultiply('Sheet width', columns, fullCellWidth),
+    sheetH: safeMultiply('Sheet height', rows, fullCellHeight),
   };
 }
 
@@ -400,6 +403,8 @@ function createCanvas(
   height,
   willReadFrequently = false,
 ) {
+  validateCanvasAllocation(width, height, 'This canvas');
+
   const element = document.createElement('canvas');
 
   element.width = width;
@@ -499,6 +504,12 @@ function resizeFrame(frame, targetSize) {
     frame.width,
     frame.height,
     targetSize,
+  );
+
+  validateCanvasAllocation(
+    dimensions.width,
+    dimensions.height,
+    'This resized frame',
   );
 
   const surface = createCanvas(
@@ -705,6 +716,12 @@ export function packFrames(frames, options) {
     options.padding,
     options.layout,
     options.columns,
+  );
+
+  validateCanvasAllocation(
+    geometry.sheetW,
+    geometry.sheetH,
+    'This layout',
   );
 
   const output = createCanvas(
