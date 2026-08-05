@@ -59,9 +59,13 @@ No API, Python installation, or server-side processing is needed.
 
 ## Manifest
 
-The JSON download preserves the original CLI schema: top-level output and packing options plus a `frames` array. Every frame includes its processed index and name, row and column, processed dimensions, content-cell dimensions, padding, and the final `x`/`y` coordinates of its centered image.
+The JSON download preserves the original CLI schema fields: top-level output and packing options plus a `frames` array. Every frame includes its processed index and name, row and column, processed dimensions, content-cell dimensions, padding, and the final `x`/`y` coordinates of its centered image. Frame manifests also include a top-level `input` object so the uploaded source can be identified without changing the meaning of `frames[].name`.
 
-Multiple-sheet mode instead writes a sheet-level atlas manifest with `type: "atlas"`, the output dimensions, selected layout, effective rows and columns, gap, effective compact maximum width, and a naturally ordered `sheets` array containing each source filename, original dimensions, index, and final coordinates. Manifests belonging to the uploaded sheets are not read or merged.
+Grid-sheet manifests store the uploaded sheet filename, decoded sheet dimensions, and selected frame width and height under `input` with `mode: "sheet"`. The sliced frames still use generated logical names such as `frame_000.png`, `frame_001.png`, and so on because those frames did not originate as separate uploaded files.
+
+Individual-frame manifests store `input.mode: "frames"` and the uploaded frame count. Each `frames[].name` remains the naturally sorted uploaded filename, so a selection such as `death1.png`, `death2.png`, and `death10.png` appears in that order in the manifest.
+
+Multiple-sheet mode instead writes a sheet-level atlas manifest with `type: "atlas"`, the output dimensions, selected layout, effective rows and columns, gap, effective compact maximum width, and a naturally ordered `sheets` array containing each source filename, original dimensions, index, and final coordinates. Atlas manifests continue to list original uploaded filenames under `sheets`; manifests belonging to the uploaded sheets are not read or merged.
 
 ### Atlas layout behavior
 
