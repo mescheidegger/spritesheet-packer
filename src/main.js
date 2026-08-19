@@ -478,7 +478,7 @@ function validateForm() {
     const maxWidth = getElement('max-width').value;
     if (getElement('layout').value === 'compact') {
       errors.maxWidth = validateInteger(maxWidth, {
-        label: 'Maximum atlas width', optional: true,
+        label: 'Maximum output width', optional: true,
       });
       if (!errors.maxWidth && maxWidth && state.frames.length > 0) {
         const widest = Math.max(...state.frames.map((frame) => frame.width));
@@ -487,6 +487,10 @@ function validateForm() {
         }
       }
     }
+  } else if (getInputMode() === 'frames' && getElement('layout').value === 'compact') {
+    errors.maxWidth = validateInteger(getElement('max-width').value, {
+      label: 'Maximum output width', optional: true,
+    });
   }
 
   getElement('frame-width-error').textContent =
@@ -616,8 +620,16 @@ function configureMode() {
     option.hidden = !isAtlasMode;
     option.disabled = !isAtlasMode;
   }
+  for (const option of document.querySelectorAll('.frame-layout')) {
+    option.hidden = isAtlasMode;
+    option.disabled = isAtlasMode;
+  }
+  for (const option of document.querySelectorAll('.compact-layout')) {
+    option.hidden = isSheetMode;
+    option.disabled = isSheetMode;
+  }
   if (isAtlasMode) getElement('layout').value = 'horizontal';
-  else if (!['row', 'grid'].includes(getElement('layout').value)) getElement('layout').value = 'row';
+  else if (!(isSheetMode ? ['row', 'grid'] : ['row', 'grid', 'compact']).includes(getElement('layout').value)) getElement('layout').value = 'row';
   updateLayoutFields();
 
   fileInput.multiple = !isSheetMode;
@@ -639,7 +651,9 @@ function configureMode() {
 function updateLayoutFields() {
   const layout = getElement('layout').value;
   setHidden('columns-field', layout !== 'grid');
-  setHidden('max-width-field', getInputMode() !== 'atlas' || layout !== 'compact');
+  const compactFrames = getInputMode() === 'frames' && layout === 'compact';
+  setHidden('max-width-field', layout !== 'compact' || getInputMode() === 'sheet');
+  setHidden('compact-help', !compactFrames);
 }
 
 /**
@@ -649,8 +663,9 @@ function updateLayoutFields() {
  *   trim: boolean,
  *   targetSize: number | null,
  *   padding: number,
- *   layout: 'row' | 'grid',
- *   columns: number
+ *   layout: 'row' | 'grid' | 'compact',
+ *   columns: number,
+ *   maxWidth: number|null
  * }}
  */
 function readProcessingOptions() {
@@ -676,6 +691,10 @@ function readProcessingOptions() {
     columns: columnValue
       ? Number(columnValue)
       : 0,
+
+    maxWidth: getElement('max-width').value
+      ? Number(getElement('max-width').value)
+      : null,
   };
 }
 
@@ -753,17 +772,20 @@ function updateOutputSummary(
   const estimatedMebibytes =
     estimatedBytes / BYTES_PER_MEBIBYTE;
 
-  renderSummary(
-    getElement('output-summary'),
-    [
+  const values = [
       `${geometry.sheetW}×${geometry.sheetH} output`,
       `${frameCount} frames`,
-      `${geometry.cellW}×${geometry.cellH} content cell`,
-      `${geometry.fullCellW}×${geometry.fullCellH} full cell`,
-      `${geometry.rows} rows × ${geometry.columns} columns`,
-      `${estimatedMebibytes.toFixed(2)} MiB RGBA`,
-    ],
-  );
+  ];
+  if (geometry.placements) {
+    values.push('Compact layout', `${geometry.maxWidth} px maximum width`);
+    values.push(`${Number(getElement('padding').value)} px padding`);
+  } else {
+    values.push(`${geometry.cellW}×${geometry.cellH} content cell`);
+    values.push(`${geometry.fullCellW}×${geometry.fullCellH} full cell`);
+    values.push(`${geometry.rows} rows × ${geometry.columns} columns`);
+  }
+  values.push(`${estimatedMebibytes.toFixed(2)} MiB RGBA`);
+  renderSummary(getElement('output-summary'), values);
 }
 
 function updateAtlasOutputSummary(layout, count) {

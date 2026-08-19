@@ -289,14 +289,14 @@
                 Layout
 
                 <select id="layout">
-                  <option value="row">
+                  <option class="frame-layout" value="row">
                     Single horizontal row
                   </option>
 
                   <option value="grid">Grid</option>
                   <option class="atlas-layout" value="horizontal">Horizontal</option>
                   <option class="atlas-layout" value="vertical">Vertical</option>
-                  <option class="atlas-layout" value="compact">Compact</option>
+                  <option class="compact-layout" value="compact">Compact</option>
                 </select>
               </label>
 
@@ -331,7 +331,7 @@
               </label>
 
               <label id="max-width-field" class="hidden">
-                Maximum atlas width <span class="hint">Optional; derived from total area if blank</span>
+                Maximum output width <span class="hint">Optional; automatic if blank</span>
                 <input id="max-width" type="number" min="1" inputmode="numeric" aria-describedby="max-width-error">
                 <span id="max-width-error" class="error"></span>
               </label>
@@ -348,6 +348,7 @@
             </div>
 
             <p id="atlas-help" class="hint hidden">Each sheet is copied at its original size and is never sliced, scaled, trimmed, or rotated.</p>
+            <p id="compact-help" class="hint hidden">Compact packs frames using their actual dimensions. Use the JSON manifest to locate individual frames.</p>
 
             <p
               id="trim-warning"

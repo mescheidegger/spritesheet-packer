@@ -1,4 +1,5 @@
 import { safeAdd, safeMultiply, validateCanvasAllocation } from './resource-limits.js';
+import { calculateCompactRectangles } from './rectangle-packer.js';
 
 /**
  * @typedef {'horizontal'|'vertical'|'grid'|'compact'} AtlasLayout
@@ -74,7 +75,6 @@ function normalizeLayout(layout) {
  *   gap: number,
  *   widest: number,
  *   tallest: number,
- *   totalArea: number
  * }}
  */
 function validateInputs(items, options) {
@@ -84,7 +84,6 @@ function validateInputs(items, options) {
 
   let widest = 0;
   let tallest = 0;
-  let totalArea = 0;
 
   for (const item of items) {
     if (
@@ -100,11 +99,6 @@ function validateInputs(items, options) {
 
     widest = Math.max(widest, item.width);
     tallest = Math.max(tallest, item.height);
-    totalArea = safeAdd(
-      'Total atlas input area',
-      totalArea,
-      safeMultiply('Atlas item area', item.width, item.height),
-    );
   }
 
   const gap = options.gap ?? 0;
@@ -117,7 +111,6 @@ function validateInputs(items, options) {
     gap,
     widest,
     tallest,
-    totalArea,
   };
 }
 
@@ -279,8 +272,6 @@ function calculateGrid(
  *
  * @param {AtlasItem[]} items
  * @param {number} gap
- * @param {number} widest
- * @param {number} totalArea
  * @param {number|null|undefined} requestedMaxWidth
  * @returns {Pick<
  *   AtlasGeometry,
@@ -290,81 +281,21 @@ function calculateGrid(
 function calculateCompact(
   items,
   gap,
-  widest,
-  totalArea,
   requestedMaxWidth,
 ) {
-  const derivedWidth = Math.max(
-    widest,
-    Math.ceil(Math.sqrt(totalArea)),
-  );
-
-  const maxWidth = requestedMaxWidth ?? derivedWidth;
-
-  if (!Number.isInteger(maxWidth) || maxWidth <= 0) {
-    throw new RangeError(
-      'Maximum atlas width must be a positive integer.',
-    );
-  }
-
-  if (maxWidth < widest) {
-    throw new RangeError(
-      `Maximum atlas width must be at least ${widest}.`,
-    );
-  }
-
-  const ordered = items
-    .map((item, index) => ({ item, index }))
-    .sort(
-      (a, b) =>
-        b.item.height - a.item.height ||
-        b.item.width - a.item.width ||
-        a.index - b.index,
-    );
-
-  let x = 0;
-  let y = 0;
-  let shelfHeight = 0;
-  let usedWidth = 0;
-
-  /** @type {AtlasPlacement[]} */
-  const placementsByIndex = new Array(items.length);
-
-  for (const { item, index } of ordered) {
-    if (x > 0 && x + item.width > maxWidth) {
-      y = safeAdd('Compact atlas y', y, shelfHeight, gap);
-      x = 0;
-      shelfHeight = 0;
-    }
-
-    placementsByIndex[index] = {
-      index,
-      x,
-      y,
-      w: item.width,
-      h: item.height,
-    };
-
-    usedWidth = Math.max(
-      usedWidth,
-      safeAdd('Compact atlas used width', x, item.width),
-    );
-
-    shelfHeight = Math.max(
-      shelfHeight,
-      item.height,
-    );
-
-    x = safeAdd('Horizontal atlas width', x, item.width, gap);
-  }
+  const packed = calculateCompactRectangles(items, {
+    gap,
+    maxWidth: requestedMaxWidth,
+    widthLabel: 'Maximum atlas width',
+  });
 
   return {
-    width: usedWidth,
-    height: safeAdd('Compact atlas height', y, shelfHeight),
+    width: packed.width,
+    height: packed.height,
     rows: null,
     columns: null,
-    maxWidth,
-    placements: placementsByIndex,
+    maxWidth: packed.maxWidth,
+    placements: packed.placements,
   };
 }
 
@@ -454,7 +385,6 @@ export function calculateAtlasLayout(
     gap,
     widest,
     tallest,
-    totalArea,
   } = validateInputs(items, options);
 
   let geometry;
@@ -483,8 +413,6 @@ export function calculateAtlasLayout(
     geometry = calculateCompact(
       items,
       gap,
-      widest,
-      totalArea,
       options.maxWidth,
     );
   }
