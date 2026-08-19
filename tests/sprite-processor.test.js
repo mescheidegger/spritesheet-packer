@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateLayout, calculateGeometry, centeredPosition, findAlphaBounds, calculateUnionBounds, trimStrategy, createManifest, frameName, scaledDimensions } from '../src/sprite-processor.js';
+import { calculateLayout, calculateGeometry, calculateCompactGeometry, centeredPosition, findAlphaBounds, calculateUnionBounds, trimStrategy, createManifest, frameName, scaledDimensions } from '../src/sprite-processor.js';
 import { validateInteger, sanitizeBasename, validateSheetDimensions, calculateSheetGrid, suggestFrameDimensions } from '../src/validation.js';
 import { sliceSheet, sortFilesNaturally } from '../src/image-loader.js';
 
@@ -47,6 +47,36 @@ test('individual-frame manifest includes input count and keeps naturally ordered
   assert.deepEqual(result.frames.map((frame) => frame.index), [0, 1, 2]);
   assert.equal(result.columns, 2);
   assert.deepEqual(result.frames[0], { index: 0, name: 'death1.png', row: 0, col: 0, x: 1, y: 1, w: 16, h: 16, cell_w: 16, cell_h: 16, padding: 1 });
+});
+test('compact frames use actual padded dimensions and authoritative placements', () => {
+  const frames = [
+    { name: 'frame2.png', sourceIndex: 8, width: 20, height: 8 },
+    { name: 'frame10.png', sourceIndex: 9, width: 6, height: 16 },
+    { name: 'frame11.png', sourceIndex: 10, width: 9, height: 5 },
+  ];
+  const geometry = calculateCompactGeometry(frames, 2, 28);
+  assert.deepEqual(geometry.placements, [
+    { index: 0, x: 0, y: 20, w: 24, h: 12 },
+    { index: 1, x: 0, y: 0, w: 10, h: 20 },
+    { index: 2, x: 0, y: 32, w: 13, h: 9 },
+  ]);
+  assert.deepEqual([geometry.sheetW, geometry.sheetH, geometry.maxWidth], [24, 41, 28]);
+  const manifest = createManifest('compact', { layout: 'compact', columns: 0, padding: 2, trim: true, targetSize: null }, geometry, frames, { mode: 'frames', count: 3 });
+  assert.deepEqual(manifest.frames.map(({ name, x, y }) => ({ name, x, y })), [
+    { name: 'frame2.png', x: 2, y: 22 },
+    { name: 'frame10.png', x: 2, y: 2 },
+    { name: 'frame11.png', x: 2, y: 34 },
+  ]);
+  assert.deepEqual(manifest.frames[0], { index: 8, name: 'frame2.png', row: null, col: null, x: 2, y: 22, w: 20, h: 8, cell_w: null, cell_h: null, padding: 2 });
+  assert.equal(manifest.columns, null);
+  assert.equal(manifest.cell_w, null);
+  assert.equal(manifest.cell_h, null);
+  assert.equal(manifest.max_width, 28);
+});
+test('compact automatic width includes padding and explicit widths reject the widest packed frame', () => {
+  const frames = [{ width: 30, height: 2 }, { width: 2, height: 2 }];
+  assert.ok(calculateCompactGeometry(frames, 3, null).maxWidth >= 36);
+  assert.throws(() => calculateCompactGeometry(frames, 3, 35), /Maximum output width must be at least 36/);
 });
 test('sheet frame names are zero padded and ordered', () => assert.deepEqual(Array.from({ length: 3 }, (_, index) => frameName(index, 3)), ['frame_000.png', 'frame_001.png', 'frame_002.png']));
 test('scaling allows up/down scaling and preserves aspect ratio', () => { assert.deepEqual(scaledDimensions(8, 4, 16), { width: 16, height: 8 }); assert.deepEqual(scaledDimensions(40, 20, 10), { width: 10, height: 5 }); });

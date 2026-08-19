@@ -15,7 +15,8 @@ PNG, GIF, JPEG, and WebP inputs are accepted where the browser supports decoding
 - Optional alignment-preserving transparent-border trimming for equally sized frame batches
 - Optional nearest-neighbor scaling to fit a square target size
 - Nonnegative padding around every content cell
-- Single-row or grid layout, with automatic or explicit column counts
+- Single-row or grid layout using uniform cells, with automatic or explicit column counts
+- Compact individual-frame packing based on each processed frame's actual dimensions
 - Four atlas layouts for complete sheets: horizontal, vertical, grid, and compact
 - Checkerboard preview and downloadable transparent PNG
 - Downloadable JSON manifest compatible with the original CLI schema
@@ -88,6 +89,8 @@ Grid-sheet manifests store the uploaded sheet filename, decoded sheet dimensions
 
 Individual-frame manifests store `input.mode: "frames"` and the uploaded frame count. Each `frames[].name` remains the naturally sorted uploaded filename, so a selection such as `death1.png`, `death2.png`, and `death10.png` appears in that order in the manifest.
 
+Row and Grid frame layouts use uniform cells. Individual Frames **Compact** instead packs the processed frame dimensions (after trim and target-size scaling), including padding around every frame. Compact never rotates sprites and has no meaningful rows, columns, or uniform cell size, so consumers should use the JSON manifest's per-frame coordinates. **Maximum Output Width** optionally controls the shelf width; when blank, the app derives an automatic width that is never smaller than the widest padded frame.
+
 Multiple-sheet mode instead writes a sheet-level atlas manifest with `type: "atlas"`, the output dimensions, selected layout, effective rows and columns, gap, effective compact maximum width, and a naturally ordered `sheets` array containing each source filename, original dimensions, index, and final coordinates. Atlas manifests continue to list original uploaded filenames under `sheets`; manifests belonging to the uploaded sheets are not read or merged.
 
 ### Atlas layout behavior
@@ -95,7 +98,7 @@ Multiple-sheet mode instead writes a sheet-level atlas manifest with `type: "atl
 - **Horizontal** places original-size sheets left to right with top edges aligned.
 - **Vertical** places them top to bottom with left edges aligned.
 - **Grid** uses the widest and tallest inputs as the uniform cell size, places each sheet at the top-left of its cell, and supports automatic or explicit columns.
-- **Compact** deterministically packs variable-size rectangles without rotation. Its optional maximum width must be at least the widest input. When blank, a width is derived from total image area and clamped to the widest input.
+- **Compact** deterministically packs variable-size rectangles without rotation. The optional **Maximum Output Width** must be at least the widest input. When blank, a width is derived from total image area and clamped to the widest input.
 
 The nonnegative atlas gap is inserted only between sheets or grid cells. Every layout preserves source pixels and transparent space without scaling or rotation.
 

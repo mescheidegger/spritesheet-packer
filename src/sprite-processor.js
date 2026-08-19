@@ -1,4 +1,5 @@
 import { safeAdd, safeMultiply, validateCanvasAllocation } from './resource-limits.js';
+import { calculateCompactRectangles } from './rectangle-packer.js';
 
 /**
  * A sprite frame moving through the processing pipeline.
@@ -22,7 +23,7 @@ import { safeAdd, safeMultiply, validateCanvasAllocation } from './resource-limi
  */
 
 /**
- * @typedef {'row' | 'grid'} Layout
+ * @typedef {'row' | 'grid' | 'compact'} Layout
  */
 
 /**
@@ -41,6 +42,8 @@ import { safeAdd, safeMultiply, validateCanvasAllocation } from './resource-limi
  * @property {number} fullCellH
  * @property {number} sheetW
  * @property {number} sheetH
+ * @property {Array<{index: number, x: number, y: number, w: number, h: number}>} [placements]
+ * @property {number|null} [maxWidth]
  */
 
 const MINIMUM_FRAME_NAME_DIGITS = 3;
@@ -219,6 +222,33 @@ export function centeredPosition(
     col: column,
     x: cellX + padding + horizontalOffset,
     y: cellY + padding + verticalOffset,
+  };
+}
+
+/** Pack processed frame dimensions, including per-frame padding. */
+export function calculateCompactGeometry(frames, padding, maxWidth) {
+  assertMinimumInteger('padding', padding, 0);
+  const doubledPadding = safeMultiply('Doubled padding', padding, 2);
+  const packed = calculateCompactRectangles(frames.map((frame) => ({
+    width: safeAdd('Packed frame width', frame.width, doubledPadding),
+    height: safeAdd('Packed frame height', frame.height, doubledPadding),
+  })), {
+    gap: 0,
+    maxWidth,
+    widthLabel: 'Maximum output width',
+  });
+
+  return {
+    columns: null,
+    rows: null,
+    cellW: null,
+    cellH: null,
+    fullCellW: null,
+    fullCellH: null,
+    sheetW: packed.width,
+    sheetH: packed.height,
+    maxWidth: packed.maxWidth,
+    placements: packed.placements,
   };
 }
 
@@ -642,13 +672,10 @@ export function createManifest(
   input,
 ) {
   const manifestFrames = frames.map((frame, index) => {
-    const position = centeredPosition(
-      index,
-      frame.width,
-      frame.height,
-      geometry,
-      options.padding,
-    );
+    const placement = geometry.placements?.[index];
+    const position = options.layout === 'compact'
+      ? { row: null, col: null, x: placement.x + options.padding, y: placement.y + options.padding }
+      : centeredPosition(index, frame.width, frame.height, geometry, options.padding);
 
     return {
       index: frame.sourceIndex,
@@ -665,12 +692,12 @@ export function createManifest(
   return {
     output: `${output}.png`,
     layout: options.layout,
-    columns:
-      options.layout === 'row'
-        ? null
-        : options.columns || 'auto',
+    columns: options.layout === 'row' || options.layout === 'compact'
+      ? null
+      : options.columns || 'auto',
     cell_w: geometry.cellW,
     cell_h: geometry.cellH,
+    ...(options.layout === 'compact' ? { max_width: geometry.maxWidth } : {}),
     padding: options.padding,
     trim: options.trim,
     target_size: options.targetSize,
@@ -687,7 +714,8 @@ export function createManifest(
  *   targetSize?: number | null,
  *   padding: number,
  *   layout: Layout,
- *   columns?: number
+ *   columns?: number,
+ *   maxWidth?: number|null
  * }} options
  * @returns {{
  *   canvas: HTMLCanvasElement,
@@ -709,14 +737,10 @@ export function packFrames(frames, options) {
     options.targetSize ??
     Math.max(...frames.map((frame) => frame.height));
 
-  const geometry = calculateGeometry(
-    frames.length,
-    cellWidth,
-    cellHeight,
-    options.padding,
-    options.layout,
-    options.columns,
-  );
+  const geometry = options.layout === 'compact'
+    ? calculateCompactGeometry(frames, options.padding, options.maxWidth)
+    : calculateGeometry(frames.length, cellWidth, cellHeight, options.padding,
+      options.layout, options.columns);
 
   validateCanvasAllocation(
     geometry.sheetW,
@@ -739,13 +763,10 @@ export function packFrames(frames, options) {
   }
 
   frames.forEach((frame, index) => {
-    const position = centeredPosition(
-      index,
-      frame.width,
-      frame.height,
-      geometry,
-      options.padding,
-    );
+    const placement = geometry.placements?.[index];
+    const position = options.layout === 'compact'
+      ? { x: placement.x + options.padding, y: placement.y + options.padding }
+      : centeredPosition(index, frame.width, frame.height, geometry, options.padding);
 
     output.context.drawImage(
       frame.source,
